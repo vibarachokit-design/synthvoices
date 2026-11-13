@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracto Voz Sintética</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f1efe8; --panel: #faf9f4; --ink: #16201a; --muted: #5f6d64; --line: #d8d4c8;
+  --accent: #0d7a4c; --accent-soft: rgba(13,122,76,.12); --hot: #c2410c; --nose: #6d5bd0;
+  --tongue: #d97786; --tongue-fill: rgba(217,119,134,.18);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0e0c; --panel: #101713; --ink: #d9f6e4; --muted: #7c9888; --line: #1e2b24;
+    --accent: #3df08e; --accent-soft: rgba(61,240,142,.10); --hot: #ff9b5c; --nose: #a99bff;
+    --tongue: #ff8ea0; --tongue-fill: rgba(255,142,160,.12);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0e0c; --panel: #101713; --ink: #d9f6e4; --muted: #7c9888; --line: #1e2b24;
+  --accent: #3df08e; --accent-soft: rgba(61,240,142,.10); --hot: #ff9b5c; --nose: #a99bff;
+  --tongue: #ff8ea0; --tongue-fill: rgba(255,142,160,.12);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: "Instrument Sans", system-ui, sans-serif; font-size: 15px; line-height: 1.45; min-height: 100vh; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 22px 16px 48px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; font-weight: 700; }
+h1 span { color: var(--accent); }
+.tag { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.label { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tabs { display: flex; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 11px; margin-bottom: 16px; }
+.tab { flex: 1; border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 8px 10px; font: 600 14px "Instrument Sans", sans-serif; cursor: pointer; }
+.tab.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 0 var(--line), 0 0 0 1px var(--line); }
+textarea { width: 100%; min-height: 108px; resize: vertical; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 12px; font: 500 17px/1.45 "Instrument Sans", sans-serif; }
+#lyrics { min-height: 120px; font-size: 15px; }
+textarea:focus, button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 10px; font: 500 12px "Instrument Sans", sans-serif; cursor: pointer; }
+.chip:hover { color: var(--ink); border-color: var(--muted); }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; padding: 10px 16px; font: 600 14px "Instrument Sans", sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.btn.small { padding: 6px 10px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.status { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); margin-left: auto; }
+.ipa { margin-top: 14px; font-family: "IBM Plex Mono", monospace; font-size: 14px; color: var(--accent); word-break: break-word; min-height: 20px; max-height: 90px; overflow: auto; }
+.voices { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.voice { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; padding: 6px 12px; font: 500 13px "Instrument Sans", sans-serif; cursor: pointer; }
+.voice.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+@media (max-width: 480px) { .sliders { grid-template-columns: 1fr; } }
+.sl label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 2px; gap: 6px; }
+.sl label b { font-family: "IBM Plex Mono", monospace; font-weight: 500; color: var(--ink); font-size: 12px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 18px; text-align: center; cursor: pointer; color: var(--muted); transition: border-color .15s, background .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.drop strong { color: var(--ink); display: block; font-size: 15px; margin-bottom: 2px; }
+.songinfo { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); margin-top: 10px; word-break: break-word; }
+.songinfo b { color: var(--ink); font-weight: 500; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+.check input { accent-color: var(--accent); }
+.hint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.hidden { display: none !important; }
+canvas { display: block; width: 100%; }
+#head { aspect-ratio: 4 / 3; border-radius: 10px; background: var(--bg); }
+.readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.ro { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.ro small { display: block; font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.ro span { font-family: "IBM Plex Mono", monospace; font-size: 14px; white-space: nowrap; }
+.score { margin-top: 16px; }
+#timeline { height: 64px; border-radius: 8px 8px 0 0; background: var(--bg); cursor: pointer; }
+#roll { height: 150px; background: var(--bg); cursor: pointer; border-top: 1px solid var(--line); }
+#spec { height: 130px; border-radius: 0 0 8px 8px; background: var(--bg); cursor: pointer; border-top: 1px solid var(--line); }
+.scroller { overflow-x: auto; }
+.note { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.note code { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tracto<span>.</span> voz por modelado físico</h1>
+    <div class="tag">glotis LF · guía de ondas de 44 secciones · rama nasal</div>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-mode="speak">Hablar texto</button>
+        <button class="tab" data-mode="sing">Cantar canción</button>
+      </div>
+
+      <!-- HABLAR -->
+      <div id="speakPanel">
+        <div class="label"><span>Texto (español)</span><span>Ctrl/⌘ + Enter</span></div>
+        <textarea id="text" spellcheck="false">Hola, soy una voz hecha de aire. ¿Me escuchas bien?</textarea>
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <!-- CANTAR -->
+      <div id="singPanel" class="hidden">
+        <input type="file" id="file" accept="audio/*,.mp3" class="hidden">
+        <div class="drop" id="drop"><strong>Cargar canción (MP3, WAV, M4A…)</strong>toca aquí o arrastra el archivo. Funciona mejor con una voz aislada o a capela.</div>
+        <div class="songinfo" id="songinfo"></div>
+        <div id="songCtl" class="hidden">
+          <div class="sliders" style="margin-top:14px">
+            <div class="sl"><label><span>Desde</span><b id="vFrom"></b></label><input type="range" id="from" min="0" max="10" step="0.5" value="0"></div>
+            <div class="sl"><label><span>Hasta</span><b id="vTo"></b></label><input type="range" id="to" min="0" max="10" step="0.5" value="10"></div>
+          </div>
+          <div class="row">
+            <button class="btn small" id="analyze">Detectar melodía</button>
+            <span class="songinfo" id="melinfo" style="margin:0"></span>
+          </div>
+          <div class="label" style="margin-top:16px"><span>Letra</span><span id="sylinfo"></span></div>
+          <textarea id="lyrics" spellcheck="false" placeholder="Escribe la letra del tramo elegido. Si la dejas vacía, canta «la la la»."></textarea>
+          <p class="hint">Las sílabas se reparten en orden sobre las notas detectadas. Si sobran notas, las sílabas se alargan (melisma); si faltan, varias sílabas comparten una nota.</p>
+          <div class="sliders" style="margin-top:12px">
+            <div class="sl"><label><span>Transponer</span><b id="vTr"></b></label><input type="range" id="transpose" min="-24" max="24" step="1" value="0"></div>
+            <div class="sl"><label><span>Afinación automática</span><b id="vAt"></b></label><input type="range" id="autotune" min="0" max="1" step="0.05" value="0.6"></div>
+            <div class="sl"><label><span>Canción original de fondo</span><b id="vOg"></b></label><input type="range" id="orig" min="0" max="1" step="0.05" value="0.35"></div>
+            <div class="sl" style="display:flex;align-items:flex-end"><label class="check"><input type="checkbox" id="karaoke"> quitar la voz del original (karaoke)</label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="play">▶ Hablar</button>
+        <button class="btn" id="stop" disabled>■ Detener</button>
+        <button class="btn" id="dl" disabled>↓ WAV</button>
+        <span class="status" id="status">listo</span>
+      </div>
+      <div class="bar"><i id="prog"></i></div>
+      <div class="ipa" id="ipa"></div>
+
+      <div class="label" style="margin-top:18px"><span>Voz</span></div>
+      <div class="voices" id="voices"></div>
+      <div class="sliders" id="sliders"></div>
+    </section>
+
+    <section class="panel">
+      <div class="label"><span>Corte sagital</span><span id="phon">—</span></div>
+      <canvas id="head"></canvas>
+      <div class="readout">
+        <div class="ro"><small>F0</small><span id="r-f0">—</span></div>
+        <div class="ro"><small>Voz</small><span id="r-voz">—</span></div>
+        <div class="ro"><small>Fricción</small><span id="r-fric">—</span></div>
+        <div class="ro"><small>Velo</small><span id="r-velo">—</span></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel score">
+    <div class="label"><span>Partitura gestual<span id="rollLbl" class="hidden"> · notas detectadas</span> · espectrograma</span><span>clic para reproducir desde ahí</span></div>
+    <div class="scroller" id="scroller"><div id="scoreInner">
+      <canvas id="timeline"></canvas>
+      <canvas id="roll" class="hidden"></canvas>
+      <canvas id="spec"></canvas>
+    </div></div>
+    <p class="note">Nada de esto son grabaciones: cada sonido sale de una simulación de cuerdas vocales que empujan aire por un tubo de 44 secciones (faringe, lengua, labios) con una rama nasal. Al cantar, la melodía se extrae del archivo con el detector de tono YIN, se corta en notas, y la letra se divide en sílabas con reglas del español; las consonantes de cada sílaba caen justo antes de la nota, como hace un cantante.</p>
+  </section>
+</div>
+
+<script>
+// =====================================================================
+// MOTOR — guía de ondas Kelly-Lochbaum (al estilo de Pink Trombone)
+// =====================================================================
+const N = 44, NOSE_LEN = 28, NOSE_START = N - NOSE_LEN + 1;
+
+function numToWords(n) {
+  n = Math.floor(n);
+  if (n === 0) return 'cero';
+  const u = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte', 'veintiuno', 'veintidós', 'veintitrés', 'veinticuatro', 'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve'];
+  const d = ['', '', '', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+  const c = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+  const b1000 = x => {
+    if (x === 100) return 'cien';
+    let s = '';
+    if (x >= 100) { s += c[Math.floor(x / 100)] + ' '; x %= 100; }
+    if (x < 30) s += u[x]; else { s += d[Math.floor(x / 10)]; if (x % 10) s += ' y ' + u[x % 10]; }
+    return s.trim();
+  };
+  if (n >= 1e6) { const m = Math.floor(n / 1e6), r = n % 1e6; return ((m === 1 ? 'un millón' : b1000(m) + ' millones') + (r ? ' ' + numToWords(r) : '')).trim(); }
+  if (n >= 1000) { const k = Math.floor(n / 1000), r = n % 1000; return ((k === 1 ? 'mil' : b1000(k) + ' mil') + (r ? ' ' + b1000(r) : '')).trim(); }
+  return b1000(n);
+}
+
+// ---------- Formas del tracto ----------
+function restShape() { const d = new Float64Array(N); for (let i = 0; i < N; i++) d[i] = i < 6.5 ? 0.6 : (i < 12 ? 1.1 : 1.5); return d; }
+const REST = restShape();
+function profile(pts) {
+  const d = Float64Array.from(REST);
+  for (let i = pts[0][0]; i < N; i++) {
+    let k = 0;
+    while (k < pts.length - 1 && pts[k + 1][0] < i) k++;
+    const a = pts[k], b = pts[k + 1] || a;
+    const t = b[0] === a[0] ? 0 : Math.min(1, Math.max(0, (i - a[0]) / (b[0] - a[0])));
+    d[i] = a[1] + (b[1] - a[1]) * t * t * (3 - 2 * t);
+  }
+  return d;
+}
+function constrict(d, index, diam, width) {
+  for (let i = 0; i < N; i++) {
+    const rel = Math.abs(i - index) - 0.5;
+    const shrink = rel <= 0 ? 0 : rel > width ? 1 : 0.5 * (1 - Math.cos(Math.PI * rel / width));
+    if (diam < d[i]) d[i] = diam + (d[i] - diam) * shrink;
+  }
+}
+function lips(d, diam) { for (let i = 40; i < N; i++) d[i] = Math.min(d[i], i === 40 ? diam + 0.45 : diam); }
+
+const VOWELS = {
+  a: [[7, 1.0], [10, 0.8], [16, 0.85], [21, 1.5], [26, 2.6], [33, 2.9], [39, 2.6], [43, 2.2]],
+  e: [[7, 1.1], [10, 2.0], [17, 2.3], [23, 2.0], [28, 1.25], [33, 1.05], [38, 1.3], [43, 1.7]],
+  i: [[7, 1.1], [10, 2.5], [18, 2.9], [23, 2.3], [27, 1.0], [31, 0.6], [35, 0.62], [39, 0.95], [43, 1.3]],
+  o: [[7, 1.0], [10, 1.15], [16, 1.1], [21, 1.6], [27, 2.4], [34, 2.4], [39, 1.6], [43, 0.95]],
+  u: [[7, 1.1], [10, 1.9], [17, 2.1], [22, 1.3], [26, 0.7], [30, 1.2], [35, 2.3], [40, 1.7], [43, 0.6]],
+};
+const NEUTRAL = [[7, 1.1], [12, 1.5], [43, 1.6]];
+const VSHAPE = {}; for (const v in VOWELS) VSHAPE[v] = profile(VOWELS[v]);
+
+const C = {
+  p: { at: ['L', 0], voice: 0, plosive: 1, noise: [41, 0.55, 0.25], ipa: 'p' },
+  b: { at: ['L', 0], voice: 1, plosive: 1, noise: [41, 0.2, 0.25], ipa: 'b' },
+  B: { at: ['L', 0.5], voice: 1, ipa: 'β' },
+  m: { at: ['L', 0], voice: 1, velum: 0.55, ipa: 'm' },
+  f: { at: ['L', 0.36], voice: 0, noise: [41, 0.9, 0.55], ipa: 'f' },
+  t: { at: [38, 0, 2], voice: 0, plosive: 1, noise: [38, 0.75, 0.7], ipa: 't' },
+  d: { at: [38, 0, 2], voice: 1, plosive: 1, noise: [38, 0.25, 0.7], ipa: 'd' },
+  D: { at: [38, 0.52, 2], voice: 1, ipa: 'ð' },
+  n: { at: [38, 0, 2], voice: 1, velum: 0.55, ipa: 'n' },
+  l: { at: [38, 0.62, 2], voice: 1, ipa: 'l' },
+  r: { at: [38, 0, 2], voice: 1, tap: 1, ipa: 'ɾ' },
+  R: { at: [38, 0, 2], voice: 1, trill: 1, ipa: 'r' },
+  s: { at: [37.5, 0.34, 2], voice: 0, noise: [37.5, 1.4, 1], ipa: 's' },
+  S: { at: [35, 0.36, 2.5], voice: 0, noise: [35, 1.3, 0.75], ipa: 'ʃ' },
+  T: { at: [36, 0, 2.5], voice: 0, plosive: 1, affric: 1, noise: [35, 1.2, 0.75], ipa: 'tʃ' },
+  J: { at: [33, 0.6, 3], voice: 1, ipa: 'ʝ' },
+  N: { at: [33, 0, 3], voice: 1, velum: 0.55, ipa: 'ɲ' },
+  k: { at: [27, 0, 3], voice: 0, plosive: 1, noise: [27, 0.85, 0.35], ipa: 'k' },
+  g: { at: [27, 0, 3], voice: 1, plosive: 1, noise: [27, 0.25, 0.35], ipa: 'g' },
+  G: { at: [27, 0.56, 3], voice: 1, ipa: 'ɣ' },
+  x: { at: [27, 0.36, 3], voice: 0, noise: [27, 1.0, 0.3], ipa: 'x' },
+};
+const STRONG = 'aeo', ACC = { 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u' };
+const isVowelCh = ch => 'aeiouáéíóúü'.includes(ch);
+
+// ---------- Texto -> fonemas ----------
+function tokenize(text) {
+  text = text.toLowerCase().replace(/[¡¿]/g, ' ').replace(/\d+([.,]\d+)?/g, m => {
+    const [a, b] = m.split(/[.,]/);
+    return ' ' + numToWords(+a) + (b ? ' coma ' + numToWords(+b) : '') + ' ';
+  });
+  const out = [];
+  const re = /([a-zñáéíóúü]+)|([,;:—–]+)|([.!…]+)|(\?+)|(\n+)/g;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m[1]) out.push({ word: m[1] });
+    else if (m[2]) out.push({ pause: 0.2, end: 'comma' });
+    else if (m[3]) out.push({ pause: 0.4, end: 'stop' });
+    else if (m[4]) out.push({ pause: 0.4, end: 'question' });
+    else if (m[5]) out.push({ pause: 0.3, end: 'stop' });
+  }
+  return out;
+}
+
+function wordToPhones(w) {
+  const ph = [];
+  for (let i = 0; i < w.length; i++) {
+    const ch = w[i], nx = w[i + 1] || '';
+    const front = 'eiéí'.includes(nx);
+    if (isVowelCh(ch)) {
+      if (ch === 'ü') { ph.push({ v: 'u' }); continue; }
+      if (ch === 'u' && i > 0 && (w[i - 1] === 'q' || w[i - 1] === 'g') && 'eiéí'.includes(nx)) continue;
+      ph.push({ v: ACC[ch] || ch, acc: !!ACC[ch] });
+      continue;
+    }
+    switch (ch) {
+      case 'c': if (nx === 'h') { ph.push({ c: 'T' }); i++; } else ph.push({ c: front ? 's' : 'k' }); break;
+      case 'q': case 'k': ph.push({ c: 'k' }); break;
+      case 'g': ph.push({ c: front ? 'x' : 'g' }); break;
+      case 'j': ph.push({ c: 'x' }); break;
+      case 'h': break;
+      case 'z': ph.push({ c: 's' }); break;
+      case 'v': case 'b': ph.push({ c: 'b' }); break;
+      case 'w': ph.push({ v: 'u' }); break;
+      case 'x': if (i === 0) ph.push({ c: 's' }); else ph.push({ c: 'k' }, { c: 's' }); break;
+      case 'ñ': ph.push({ c: 'N' }); break;
+      case 'l': if (nx === 'l') { ph.push({ c: 'J' }); i++; } else ph.push({ c: 'l' }); break;
+      case 'y': if (!nx || !isVowelCh(nx)) ph.push({ v: 'i' }); else ph.push({ c: 'J' }); break;
+      case 'r':
+        if (nx === 'r') { ph.push({ c: 'R' }); i++; }
+        else if (i === 0 || 'nls'.includes(w[i - 1])) ph.push({ c: 'R' });
+        else ph.push({ c: 'r' });
+        break;
+      case 'n': ph.push({ c: 'pbvm'.includes(nx) ? 'm' : 'n' }); break;
+      default: if (C[ch]) ph.push({ c: ch });
+    }
+  }
+  const nuclei = [];
+  for (let i = 0; i < ph.length; i++) {
+    if (!ph[i].v) continue;
+    const prev = nuclei[nuclei.length - 1];
+    if (prev && prev[prev.length - 1] === i - 1) {
+      const a = ph[i - 1], b = ph[i];
+      const aS = STRONG.includes(a.v) || (a.acc && 'iu'.includes(a.v));
+      const bS = STRONG.includes(b.v) || (b.acc && 'iu'.includes(b.v));
+      if (!(aS && bS) && a.v !== b.v) { prev.push(i); continue; }
+    }
+    nuclei.push([i]);
+  }
+  let stressN = -1;
+  nuclei.forEach((nu, k) => { if (nu.some(i => ph[i].acc)) stressN = k; });
+  if (stressN < 0) {
+    const last = w[w.length - 1];
+    stressN = nuclei.length <= 1 ? 0 : ('aeiouns'.includes(last) ? nuclei.length - 2 : nuclei.length - 1);
+  }
+  const clitic = ['el', 'la', 'los', 'las', 'de', 'del', 'en', 'y', 'o', 'a', 'un', 'una', 'que', 'se', 'me', 'te', 'le', 'lo', 'mi', 'tu', 'su', 'por', 'con', 'al', 'es', 'no', 'si', 'nos', 'les', 'sus', 'mis', 'tus'];
+  const unstressed = clitic.includes(w);
+  nuclei.forEach((nu, k) => {
+    if (nu.length > 1) {
+      let main = nu.find(i => STRONG.includes(ph[i].v) || ph[i].acc);
+      if (main === undefined) main = nu[nu.length - 1];
+      nu.forEach(i => { if (i !== main) ph[i].glide = true; });
+    }
+    nu.forEach(i => { ph[i].stress = k === stressN && !unstressed; ph[i].nuc = k; });
+  });
+  return ph;
+}
+
+// ---------- Habla: segmentos con prosodia ----------
+function textToSegments(text, opts) {
+  const speed = opts.speed || 1, expr = opts.expressivity ?? 1;
+  const segs = [{ p: '_', dur: 0.12, ipa: '' }];
+  let words = [];
+  const flush = (end, pause) => {
+    if (words.length) buildPhrase(words, end, segs, speed, expr);
+    words = [];
+    if (pause && segs[segs.length - 1].p !== '_') segs.push({ p: '_', dur: pause / speed, ipa: end === 'comma' ? '|' : '‖' });
+  };
+  for (const t of tokenize(text)) { if (t.word) words.push(t.word); else flush(t.end, t.pause); }
+  flush('stop', 0.3);
+  if (segs[segs.length - 1].p !== '_') segs.push({ p: '_', dur: 0.3, ipa: '' });
+  return segs;
+}
+function buildPhrase(words, end, segs, speed, expr) {
+  const list = [];
+  words.forEach(w => wordToPhones(w).forEach((p, k) => list.push(Object.assign(p, { word: w, wordStart: k === 0 }))));
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i]; if (!p.c) continue;
+    const prev = list[i - 1], next = list[i + 1];
+    if ('bdg'.includes(p.c)) {
+      const stop = !prev || (prev.c && 'mnN'.includes(prev.c)) || (p.c === 'd' && prev.c === 'l');
+      if (!stop) p.c = { b: 'B', d: 'D', g: 'G' }[p.c];
+    }
+    if (p.c === 'n' && next && next.c && 'kgxG'.includes(next.c)) p.velar = true;
+  }
+  const stressed = list.map((p, i) => (p.v && p.stress && !p.glide) ? i : -1).filter(i => i >= 0);
+  const firstS = stressed[0] ?? 0, lastS = stressed[stressed.length - 1] ?? list.length - 1;
+  const n = list.length;
+  list.forEach((p, i) => {
+    const pos = i / Math.max(1, n - 1);
+    let f = 1 + 0.07 * expr - 0.14 * expr * pos;
+    if (i < firstS) f *= 1 - 0.04 * expr;
+    if (p.v && p.stress) f *= 1 + 0.13 * expr * (i === lastS && end !== 'comma' ? 0.5 : 1);
+    if (i > lastS) {
+      const k = (i - lastS) / Math.max(1, n - 1 - lastS);
+      if (end === 'question') f *= 1 + 0.5 * expr * k;
+      else if (end === 'comma') f *= 1 + 0.08 * expr * k;
+      else f *= 1 - 0.12 * expr * k;
+    }
+    if (end === 'question' && i === lastS) f *= 1 - 0.07 * expr;
+    let dur, seg;
+    if (p.v) {
+      dur = p.glide ? 0.05 : (p.stress ? 0.135 : 0.085);
+      if (i >= n - 2 && !p.glide) dur *= 1.55;
+      seg = { p: p.v, glide: p.glide, stress: p.stress && !p.glide, ipa: p.glide ? (p.v === 'i' ? 'j' : 'w') : p.v };
+    } else {
+      const c = C[p.c];
+      if (c.plosive) dur = c.affric ? 0.12 : 0.08;
+      else if (c.tap) dur = 0.032;
+      else if (c.trill) dur = 0.115;
+      else if ('sSfx'.includes(p.c)) dur = 0.095;
+      else if ('mnN'.includes(p.c)) dur = 0.07;
+      else dur = 0.055;
+      seg = { p: p.c, velar: p.velar, ipa: p.velar ? 'ŋ' : c.ipa };
+    }
+    seg.dur = dur / speed; seg.f0 = f; seg.word = p.word; seg.wordStart = p.wordStart;
+    segs.push(seg);
+  });
+}
+
+// ---------- Canto: sílabas, reparto en notas ----------
+const isCluster = (a, b) => 'pbftdkg'.includes(a) && (b === 'l' || b === 'r') && !(a === 'd' && b === 'l');
+function syllabify(ph, word) {
+  const first = [], last = [];
+  ph.forEach((p, i) => { if (p.v) { if (first[p.nuc] === undefined) first[p.nuc] = i; last[p.nuc] = i; } });
+  const K = first.length; if (!K) return [];
+  const sy = [];
+  for (let k = 0; k < K; k++) sy.push({ onset: [], nuc: ph.slice(first[k], last[k] + 1), coda: [], word, wordStart: k === 0 });
+  sy[0].onset = ph.slice(0, first[0]).map(p => p.c);
+  sy[K - 1].coda = ph.slice(last[K - 1] + 1).map(p => p.c);
+  for (let k = 0; k < K - 1; k++) {
+    const cons = ph.slice(last[k] + 1, first[k + 1]).map(p => p.c);
+    const split = cons.length <= 1 ? 0 : (isCluster(cons[cons.length - 2], cons[cons.length - 1]) ? cons.length - 2 : cons.length - 1);
+    sy[k].coda = cons.slice(0, split); sy[k + 1].onset = cons.slice(split);
+  }
+  sy.forEach(s => {
+    s.stress = s.nuc.some(v => v.stress);
+    s.label = s.onset.map(c => C[c].ipa).join('') + s.nuc.map(v => v.glide ? (v.v === 'i' ? 'j' : 'w') : v.v).join('') + s.coda.map(c => C[c].ipa).join('');
+  });
+  return sy;
+}
+function lyricsSyllables(text) {
+  const out = [];
+  for (const t of tokenize(text)) if (t.word) out.push(...syllabify(wordToPhones(t.word), t.word));
+  return out;
+}
+const LA = syllabify(wordToPhones('la'), 'la')[0];
+
+function assignSyllables(notes, syls) {
+  const nN = notes.length, nS = syls.length, slots = [];
+  if (!nN) return slots;
+  if (nS <= nN) {
+    for (let j = 0; j < nS; j++) {
+      const a = Math.floor(j * nN / nS), b = Math.max(a + 1, Math.floor((j + 1) * nN / nS));
+      const grp = notes.slice(a, b);
+      grp.forEach((n, k) => n.label = k === 0 ? syls[j].label : '~');
+      slots.push({ start: grp[0].start, end: grp[grp.length - 1].end, syl: syls[j], level: grp.reduce((s, n) => s + n.level, 0) / grp.length });
+    }
+  } else {
+    for (let i = 0; i < nN; i++) {
+      const a = Math.floor(i * nS / nN), b = Math.max(a + 1, Math.floor((i + 1) * nS / nN));
+      const n = notes[i], cnt = b - a, len = (n.end - n.start) / cnt;
+      n.label = syls.slice(a, b).map(s => s.label).join('·');
+      for (let k = 0; k < cnt; k++) slots.push({ start: n.start + k * len, end: n.start + (k + 1) * len, syl: syls[a + k], level: n.level });
+    }
+  }
+  return slots;
+}
+
+function sungDur(c) {
+  const x = C[c];
+  if (x.plosive) return x.affric ? 0.09 : 0.06;
+  if (x.tap) return 0.03; if (x.trill) return 0.09;
+  if ('sSfx'.includes(c)) return 0.075; if ('mnN'.includes(c)) return 0.06;
+  return 0.05;
+}
+function buildSongSegs(slots, total) {
+  const segs = []; let t = 0, prevC = null;
+  const last = () => segs[segs.length - 1];
+  const push = s => { segs.push(s); t += s.dur; };
+  const rest = dur => { if (dur <= 0) return; if (last() && last().p === '_') { last().dur += dur; t += dur; } else push({ p: '_', dur, ipa: '' }); prevC = null; };
+  const cons = (c, dur, lvl, syl, first) => {
+    let cc = c;
+    if ('bdg'.includes(c)) { const stop = prevC === null || 'mnN'.includes(prevC) || (c === 'd' && prevC === 'l'); if (!stop) cc = { b: 'B', d: 'D', g: 'G' }[c]; }
+    push({ p: cc, dur, ipa: C[cc].ipa, level: lvl, word: syl.word, wordStart: first && syl.wordStart });
+    prevC = c;
+  };
+  rest(0.1);
+  for (const sl of slots) {
+    const { syl } = sl, lvl = 0.62 + 0.38 * Math.sqrt(sl.level);
+    let on = syl.onset.map(sungDur), onDur = on.reduce((a, b) => a + b, 0);
+    let desired = sl.start - onDur;
+    if (desired < t) {
+      const need = t - desired, L = last();
+      if (L && VSHAPE[L.p] && L.dur - need > 0.05) { L.dur -= need; t -= need; }
+      else { const avail = Math.max(0.02, sl.start - t); if (onDur > avail) { const sc = Math.max(0.4, avail / onDur); on = on.map(x => x * sc); } }
+    } else if (desired - t > 0.06) rest(desired - t);
+    else if (desired > t) { if (last()) { last().dur += desired - t; t = desired; } else rest(desired - t); }
+    syl.onset.forEach((c, k) => cons(c, on[k], lvl, syl, k === 0));
+    const end = Math.max(sl.end, t + 0.08);
+    const mi = Math.max(0, syl.nuc.findIndex(v => !v.glide));
+    const onG = syl.nuc.slice(0, mi), offG = syl.nuc.slice(mi + 1), main = syl.nuc[mi];
+    let cd = syl.coda.map(sungDur), codaDur = cd.reduce((a, b) => a + b, 0), gd = 0.045;
+    const avail = end - t, extra = codaDur + gd * (onG.length + offG.length);
+    if (extra > avail * 0.6) { const sc = avail * 0.6 / extra; cd = cd.map(x => x * sc); codaDur *= sc; gd *= sc; }
+    const vseg = v => ({ p: v.v, glide: true, ipa: v.v === 'i' ? 'j' : 'w', level: lvl, word: syl.word });
+    const firstSeg = !syl.onset.length;
+    onG.forEach((v, k) => push(Object.assign(vseg(v), { dur: gd, wordStart: firstSeg && k === 0 && syl.wordStart })));
+    push({ p: main.v, dur: Math.max(0.03, end - t - gd * offG.length - codaDur), ipa: main.v, stress: syl.stress, level: lvl, word: syl.word, wordStart: firstSeg && !onG.length && syl.wordStart });
+    offG.forEach(v => push(Object.assign(vseg(v), { dur: gd })));
+    prevC = 'V';
+    syl.coda.forEach((c, k) => cons(c, cd[k], lvl, syl, false));
+  }
+  rest(Math.max(0, total - t) + 0.3);
+  return segs;
+}
+
+// ---------- Gestos ----------
+function planGestures(segs) {
+  const nearVowel = i => {
+    for (let k = i + 1; k < segs.length && segs[k].p !== '_'; k++) if (VSHAPE[segs[k].p]) return segs[k].p;
+    for (let k = i - 1; k >= 0 && segs[k].p !== '_'; k--) if (VSHAPE[segs[k].p]) return segs[k].p;
+    return 'e';
+  };
+  const place = (d, at) => { if (at[0] === 'L') lips(d, at[1]); else constrict(d, at[0], at[1], at[2]); };
+  let t = 0;
+  segs.forEach((s, i) => {
+    s.start = t; t += s.dur;
+    if (s.p === '_') { s.shape = profile(NEUTRAL); s.velum = 0.3; s.voice = 0; s.lung = 0; return; }
+    s.lung = s.level ?? 1;
+    if (VSHAPE[s.p]) {
+      const d = Float64Array.from(VSHAPE[s.p]);
+      if (s.glide) { if (s.p === 'i') constrict(d, 31, 0.45, 4); else { constrict(d, 27, 0.5, 3); lips(d, 0.42); } }
+      s.shape = d; s.velum = 0.01; s.voice = 1;
+      const nx = segs[i + 1];
+      if (nx && C[nx.p] && C[nx.p].velum) s.velumLate = 0.18;
+      return;
+    }
+    const c = C[s.p], v = nearVowel(i), d = Float64Array.from(VSHAPE[v]);
+    place(d, s.velar ? [27, 0, 3] : c.at);
+    s.shape = d; s.velum = c.velum || 0.01; s.voice = c.voice;
+    s.noise = c.noise ? { index: c.noise[0], gain: c.noise[1], bright: c.noise[2] } : null;
+    s.plosive = !!c.plosive; s.tap = !!c.tap; s.trill = !!c.trill; s.affric = !!c.affric;
+    if (s.affric) { const e = Float64Array.from(VSHAPE[v]); constrict(e, 35, 0.36, 2.5); s.fricShape = e; }
+    if (s.tap || s.trill) { const nx = segs[i + 1]; s.openShape = Float64Array.from(VSHAPE[nx && VSHAPE[nx.p] ? nx.p : v]); }
+  });
+  return t;
+}
+
+// ---------- Glotis (Liljencrants-Fant) y ruido ----------
+function makeLF(tense) {
+  const Rd = Math.min(2.7, Math.max(0.5, 3 * (1 - tense)));
+  const Ra = -0.01 + 0.048 * Rd, Rk = 0.224 + 0.118 * Rd;
+  const Rg = (Rk / 4) * (0.5 + 1.2 * Rk) / (0.11 * Rd - Ra * (0.5 + 1.2 * Rk));
+  const Ta = Ra, Tp = 1 / (2 * Rg), Te = Tp + Tp * Rk;
+  const eps = 1 / Ta, shift = Math.exp(-eps * (1 - Te)), Delta = 1 - shift;
+  let RHS = (1 / eps) * (shift - 1) + (1 - Te) * shift; RHS /= Delta;
+  const lower = -(Te - Tp) / 2 + RHS, upper = -lower;
+  const omega = Math.PI / Tp, s = Math.sin(omega * Te);
+  const y = -Math.PI * s * upper / (Tp * 2), z = Math.log(y);
+  const alpha = z / (Tp / 2 - Te), E0 = -1 / (s * Math.exp(alpha * Te));
+  return t => t > Te ? (-Math.exp(-eps * (t - Te)) + shift) / Delta : E0 * Math.exp(alpha * t) * Math.sin(omega * t);
+}
+function makeRng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) / 4294967296) * 2 - 1; }; }
+function bandpass(fs, f, q) {
+  const w = 2 * Math.PI * Math.min(f, fs * 0.45) / fs, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+  const b0 = al / a0, b2 = -al / a0, a1 = -2 * Math.cos(w) / a0, a2 = (1 - al) / a0;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  return x => { const y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
+}
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+// ---------- Render (asíncrono, por bloques) ----------
+async function renderSegs(segs, opts, onProgress, job) {
+  const outFs = 48000, size = opts.size || 1, fs = Math.round(outFs * size);
+  const total = planGestures(segs) + 0.1;
+  const nSim = Math.ceil(total * fs), sim = new Float32Array(nSim);
+  const rng = makeRng(7919);
+  const aspF = bandpass(fs, 500, 0.5), lowF = bandpass(fs, 1200, 0.6), highF = bandpass(fs, 4800, 0.8);
+  const tense = opts.tense, lf = makeLF(tense), loud = Math.pow(tense, 0.25);
+  const baseF0 = opts.f0, vib = opts.vibrato, breath = opts.breath, track = opts.f0Track || null;
+
+  const R = new Float64Array(N), L = new Float64Array(N), jR = new Float64Array(N + 1), jL = new Float64Array(N + 1);
+  const refl = new Float64Array(N), A = new Float64Array(N), diam = Float64Array.from(segs[0].shape);
+  const nD = new Float64Array(NOSE_LEN), nA = new Float64Array(NOSE_LEN), nR = new Float64Array(NOSE_LEN), nL = new Float64Array(NOSE_LEN);
+  const njR = new Float64Array(NOSE_LEN + 1), njL = new Float64Array(NOSE_LEN + 1), nRefl = new Float64Array(NOSE_LEN);
+  for (let i = 0; i < NOSE_LEN; i++) { const x = 2 * i / NOSE_LEN; nD[i] = Math.min(1.9, x < 1 ? 0.4 + 1.6 * x : 0.5 + 1.5 * (2 - x)); nA[i] = nD[i] * nD[i]; }
+  for (let i = 2; i < NOSE_LEN; i++) nRefl[i] = (nA[i - 1] - nA[i]) / (nA[i - 1] + nA[i]);
+  const prevClosed = new Uint8Array(N), transients = [];
+  const frames = [], frameEvery = Math.round(fs * 0.01);
+  const kClose = 1 - Math.exp(-1 / (0.006 * fs)), kOpen = 1 - Math.exp(-1 / (0.013 * fs));
+  const kSlow = 1 - Math.exp(-1 / (0.015 * fs)), kF0 = 1 - Math.exp(-1 / ((track ? 0.022 : 0.035) * fs));
+  let f0s = baseF0;
+  if (track) { const k = track.findIndex(v => v > 0); if (k >= 0) f0s = track[k]; }
+  let velum = 0.01, voice = 0, lung = 0, noiseGain = 0, noiseIdx = 30, bright = 0.5;
+  let seg = 0, phase = 0, vibP = 0, lastYield = performance.now();
+  const gRefl = 0.75, lRefl = -0.85, fade = 0.999;
+
+  for (let n = 0; n < nSim; n++) {
+    if ((n & 4095) === 0 && performance.now() - lastYield > 35) {
+      if (onProgress) onProgress(n / nSim);
+      await tick(); lastYield = performance.now();
+      if (job && job.cancelled) throw new Error('cancel');
+    }
+    const time = n / fs;
+    while (seg < segs.length - 1 && time >= segs[seg].start + segs[seg].dur) seg++;
+    const s = segs[seg], local = (time - s.start) / s.dur;
+
+    let shape = s.shape;
+    if (s.affric && local > 0.45) shape = s.fricShape;
+    if (s.tap && (local < 0.12 || local > 0.8)) shape = s.openShape;
+    if (s.trill && Math.sin(2 * Math.PI * 27 * (time - s.start)) < -0.2) shape = s.openShape;
+    for (let i = 0; i < N; i++) { const tg = shape[i]; diam[i] += (tg - diam[i]) * (tg < diam[i] ? kClose : kOpen); }
+    velum += ((s.velumLate && local > 0.55 ? s.velumLate : s.velum) - velum) * kSlow;
+    voice += (s.voice - voice) * (s.voice > voice ? kOpen : kClose);
+    lung += (s.lung - lung) * kSlow;
+
+    let ng = 0;
+    if (s.noise) {
+      noiseIdx = s.noise.index; bright = s.noise.bright;
+      if (!s.plosive) ng = s.noise.gain;
+      else if (s.affric && local > 0.45) ng = s.noise.gain;
+      else if (local > 0.85) ng = s.noise.gain;
+    }
+    const prv = segs[seg - 1];
+    if (prv && prv.plosive && prv.noise && !prv.affric && time - s.start < 0.03) {
+      noiseIdx = prv.noise.index; bright = prv.noise.bright; ng = prv.noise.gain * (1 - (time - s.start) / 0.03);
+    }
+    noiseGain += (ng - noiseGain) * kOpen;
+
+    let f0T;
+    if (track) {
+      const fi = time * 100, i0 = fi | 0, v0 = track[i0] || 0, v1 = track[i0 + 1] || 0;
+      const v = v0 && v1 ? v0 + (v1 - v0) * (fi - i0) : (v0 || v1);
+      f0T = v > 0 ? v : f0s;
+    } else f0T = baseF0 * (s.f0 || 1);
+    f0s += (f0T - f0s) * kF0;
+    vibP += 1 / fs;
+    const freq = f0s * (1 + vib * 0.014 * Math.sin(2 * Math.PI * 5.4 * vibP) + 0.005 * Math.sin(2 * Math.PI * 1.9 * vibP + 1.3) + 0.003 * Math.sin(2 * Math.PI * 0.7 * vibP));
+    phase += freq / fs; if (phase >= 1) phase -= 1;
+    const intensity = voice * lung;
+    const vv = 0.1 + 0.2 * Math.max(0, Math.sin(2 * Math.PI * phase));
+    const noiseMod = tense * intensity * vv + (1 - tense * intensity) * 0.3;
+    const w = rng();
+    const asp = aspF(w) * (intensity * (1 - Math.sqrt(tense)) * noiseMod * 0.6 + breath * lung * 0.08);
+    const glottal = lf(phase) * intensity * loud + asp;
+    const wn = rng();
+    const fric = lowF(wn) * (1 - bright) + highF(wn) * bright * 1.5;
+
+    for (let i = 0; i < N; i++) A[i] = diam[i] * diam[i];
+    for (let i = 1; i < N; i++) refl[i] = A[i] === 0 ? 0.999 : (A[i - 1] - A[i]) / (A[i - 1] + A[i]);
+    nA[0] = velum * velum;
+    nRefl[1] = (nA[0] - nA[1]) / (nA[0] + nA[1]);
+    const sum = A[NOSE_START] + A[NOSE_START + 1] + nA[0];
+    const rL = (2 * A[NOSE_START] - sum) / sum, rR = (2 * A[NOSE_START + 1] - sum) / sum, rN = (2 * nA[0] - sum) / sum;
+
+    for (let i = 2; i < N; i++) {
+      const closed = diam[i] < 0.06 ? 1 : 0;
+      if (prevClosed[i] && !closed && lung > 0.5 && transients.length < 4) transients.push({ pos: i, t: 0 });
+      prevClosed[i] = closed;
+    }
+    let thin = 0, open = 0;
+    if (noiseGain > 0.002) {
+      const ii = Math.round(noiseIdx);
+      let dmin = 9; for (let k = Math.max(0, ii - 2); k <= Math.min(N - 1, ii + 2); k++) if (diam[k] < dmin) dmin = diam[k];
+      thin = Math.min(1, Math.max(0, 8 * (0.7 - dmin)));
+      open = Math.min(1, Math.max(0, 30 * (dmin - 0.3)));
+    }
+    const turb = fric * noiseGain * 0.66 * lung * noiseMod * 1.6 * thin * open;
+
+    let out = 0;
+    for (let step = 0; step < 2; step++) {
+      jR[0] = L[0] * gRefl + glottal;
+      jL[N] = R[N - 1] * lRefl;
+      for (let i = 1; i < N; i++) { const ww = refl[i] * (R[i - 1] + L[i]); jR[i] = R[i - 1] - ww; jL[i] = L[i] + ww; }
+      const i = NOSE_START;
+      jL[i] = rL * R[i - 1] + (1 + rL) * (nL[0] + L[i]);
+      jR[i] = rR * L[i] + (1 + rR) * (R[i - 1] + nL[0]);
+      njR[0] = rN * nL[0] + (1 + rN) * (L[i] + R[i - 1]);
+      for (let k = 0; k < N; k++) { R[k] = jR[k] * fade; L[k] = jL[k + 1] * fade; }
+      out += R[N - 1];
+      njL[NOSE_LEN] = nR[NOSE_LEN - 1] * lRefl;
+      for (let k = 1; k < NOSE_LEN; k++) { const ww = nRefl[k] * (nR[k - 1] + nL[k]); njR[k] = nR[k - 1] - ww; njL[k] = nL[k] + ww; }
+      for (let k = 0; k < NOSE_LEN; k++) { nR[k] = njR[k] * fade; nL[k] = njL[k + 1] * fade; }
+      out += nR[NOSE_LEN - 1];
+      if (turb !== 0) {
+        const ii = Math.floor(noiseIdx), dl = noiseIdx - ii;
+        if (ii + 2 < N) { const a = turb * (1 - dl) / 2, b = turb * dl / 2; R[ii + 1] += a; L[ii + 1] += a; R[ii + 2] += b; L[ii + 2] += b; }
+      }
+      for (let k = transients.length - 1; k >= 0; k--) {
+        const tr = transients[k], a = 0.22 * Math.pow(2, -200 * tr.t);
+        R[tr.pos] += a / 2; L[tr.pos] += a / 2;
+        tr.t += 1 / (2 * fs);
+        if (tr.t > 0.04) transients.splice(k, 1);
+      }
+    }
+    sim[n] = out * 0.25;
+    if (n % frameEvery === 0) frames.push({ t: time, d: Float32Array.from(diam), velum, voice: intensity, noise: noiseGain * thin * open, ni: noiseIdx, f0: freq, seg });
+  }
+  if (onProgress) onProgress(1);
+
+  const nOut = Math.floor(nSim * outFs / fs), out = new Float32Array(nOut), ratio = fs / outFs;
+  for (let n = 0; n < nOut; n++) { const x = n * ratio, i = Math.floor(x), f = x - i; out[n] = (sim[i] || 0) * (1 - f) + (sim[i + 1] || 0) * f; }
+  let hp = 0, px = 0, peak = 1e-9;
+  const kh = Math.exp(-2 * Math.PI * 70 / outFs);
+  for (let n = 0; n < nOut; n++) { const x = out[n]; hp = kh * (hp + x - px); px = x; out[n] = hp; if (isFinite(hp) && Math.abs(hp) > peak) peak = Math.abs(hp); }
+  const g = 1 / peak, sat = Math.tanh(1.3);
+  for (let n = 0; n < nOut; n++) { const v = Math.tanh(out[n] * g * 1.3) / sat * 0.92; out[n] = isFinite(v) ? v : 0; }
+  return { audio: out, sampleRate: outFs, segs, frames, duration: nOut / outFs };
+}
+
+function toWav(chans, fs) {
+  const nc = chans.length, len = chans[0].length;
+  const buf = new ArrayBuffer(44 + len * 2 * nc), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + len * 2 * nc, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nc, true); v.setUint32(24, fs, true);
+  v.setUint32(28, fs * 2 * nc, true); v.setUint16(32, 2 * nc, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, len * 2 * nc, true);
+  let o = 44;
+  for (let i = 0; i < len; i++) for (let c = 0; c < nc; c++) { v.setInt16(o, Math.max(-1, Math.min(1, chans[c][i])) * 32767, true); o += 2; }
+  return buf;
+}
+
+// ---------- Análisis de melodía (YIN) ----------
+async function analyzeMelody(buffer, start, end, onProgress, job) {
+  const sr = 16000, len = Math.max(1, Math.floor((end - start) * sr));
+  const off = new OfflineAudioContext(1, len, sr);
+  const src = off.createBufferSource(); src.buffer = buffer;
+  const hp = off.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 110; hp.Q.value = 0.7;
+  const lp = off.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; lp.Q.value = 0.7;
+  src.connect(hp); hp.connect(lp); lp.connect(off.destination);
+  src.start(0, start, end - start);
+  const x = (await off.startRendering()).getChannelData(0);
+
+  const W = 512, hop = 160, tMin = 16, tMax = 230;
+  const nF = Math.max(0, Math.floor((x.length - W - tMax) / hop));
+  const f0 = new Float32Array(nF), ap = new Float32Array(nF), rms = new Float32Array(nF);
+  const d = new Float32Array(tMax + 1), dn = new Float32Array(tMax + 1);
+  let lastYield = performance.now();
+  for (let f = 0; f < nF; f++) {
+    if (performance.now() - lastYield > 35) { onProgress && onProgress(f / nF); await tick(); lastYield = performance.now(); if (job && job.cancelled) throw new Error('cancel'); }
+    const o = f * hop;
+    let e = 0; for (let j = 0; j < W; j++) e += x[o + j] * x[o + j];
+    rms[f] = Math.sqrt(e / W);
+    for (let tau = 1; tau <= tMax; tau++) { let s = 0; for (let j = 0; j < W; j++) { const df = x[o + j] - x[o + j + tau]; s += df * df; } d[tau] = s; }
+    dn[0] = 1; let run = 0;
+    for (let tau = 1; tau <= tMax; tau++) { run += d[tau]; dn[tau] = run > 0 ? d[tau] * tau / run : 1; }
+    let t = -1;
+    for (let tau = tMin; tau < tMax; tau++) { if (dn[tau] < 0.15) { while (tau + 1 < tMax && dn[tau + 1] < dn[tau]) tau++; t = tau; break; } }
+    if (t < 0) { let mn = 9; for (let tau = tMin; tau < tMax; tau++) if (dn[tau] < mn) { mn = dn[tau]; t = tau; } }
+    const a = dn[t - 1], b = dn[t], c = dn[t + 1] ?? b, den = a - 2 * b + c;
+    const tr = den !== 0 ? t + (a - c) / (2 * den) : t;
+    f0[f] = sr / tr; ap[f] = b;
+  }
+  // umbral de energía
+  const sorted = Array.from(rms).sort((p, q) => p - q);
+  const p95 = sorted[Math.floor(sorted.length * 0.95)] || 1e-6, thr = p95 * 0.12;
+  const mid = new Float32Array(nF).fill(NaN);
+  for (let f = 0; f < nF; f++) if (ap[f] < 0.3 && rms[f] > thr && f0[f] > 70 && f0[f] < 1000) mid[f] = 69 + 12 * Math.log2(f0[f] / 440);
+  // corrección de octava y mediana
+  const med = arr => { const s = arr.slice().sort((p, q) => p - q); return s[s.length >> 1]; };
+  const voiced = []; for (let f = 0; f < nF; f++) if (!isNaN(mid[f])) voiced.push(f);
+  for (let k = 0; k < voiced.length; k++) {
+    const win = []; for (let j = Math.max(0, k - 12); j <= Math.min(voiced.length - 1, k + 12); j++) win.push(mid[voiced[j]]);
+    const m = med(win), f = voiced[k];
+    while (mid[f] - m > 9) mid[f] -= 12;
+    while (m - mid[f] > 9) mid[f] += 12;
+  }
+  const sm = Float32Array.from(mid);
+  for (let f = 2; f < nF - 2; f++) {
+    if (isNaN(mid[f])) continue;
+    const w = [mid[f - 2], mid[f - 1], mid[f], mid[f + 1], mid[f + 2]].filter(v => !isNaN(v));
+    if (w.length >= 3) sm[f] = med(w);
+  }
+  // segmentación en notas
+  const notes = [];
+  let cur = null, pend = [], unv = 0;
+  const close = () => { if (cur && (cur.k1 - cur.k0 + 1) * 0.01 >= 0.08) notes.push(cur); cur = null; pend = []; };
+  const openN = (k, m) => { cur = { k0: k, k1: k, ms: [m], lv: [rms[k]] }; pend = []; };
+  for (let k = 0; k < nF; k++) {
+    const m = sm[k];
+    if (isNaN(m)) { unv++; if (unv >= 4) close(); continue; }
+    unv = 0;
+    if (!cur) { openN(k, m); continue; }
+    const ref = med(cur.ms.slice(-12));
+    const onset = rms[k] > 1.8 * rms[Math.max(0, k - 4)] && rms[k] > thr * 2 && k - cur.k0 > 8;
+    if (onset) { close(); openN(k, m); continue; }
+    if (Math.abs(m - ref) > 0.8) {
+      pend.push([k, m]);
+      if (pend.length >= 3) { const p = pend; close(); openN(p[0][0], p[0][1]); for (const [kk, mm] of p.slice(1)) { cur.ms.push(mm); cur.lv.push(rms[kk]); cur.k1 = kk; } }
+    } else {
+      for (const [kk, mm] of pend) { cur.ms.push(mm); cur.lv.push(rms[kk]); }
+      pend = []; cur.ms.push(m); cur.lv.push(rms[k]); cur.k1 = k;
+    }
+  }
+  close();
+  const off0 = W / 2 / sr;
+  let maxLv = 1e-9;
+  const out = notes.map(n => {
+    const lv = n.lv.reduce((a, b) => a + b, 0) / n.lv.length; maxLv = Math.max(maxLv, lv);
+    return { start: n.k0 * 0.01 + off0, end: n.k1 * 0.01 + off0 + 0.01, midi: Math.round(med(n.ms)), lvRaw: lv, k0: n.k0, k1: n.k1 };
+  });
+  out.forEach(n => n.level = Math.min(1, n.lvRaw / maxLv));
+  onProgress && onProgress(1);
+  return { notes: out, contour: sm, len: end - start };
+}
+
+// ---------- FFT / espectrograma ----------
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let j = 0; j < len / 2; j++) {
+        const a = i + j, b = a + len / 2;
+        const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        const nc = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nc;
+      }
+    }
+  }
+}
+function spectrogram(x, fs) {
+  const size = 1024, maxF = 8000, bins = Math.floor(maxF / (fs / size));
+  const hop = Math.max(240, Math.ceil((x.length - size) / 5000));
+  const frames = Math.max(1, Math.floor((x.length - size) / hop));
+  const win = new Float32Array(size); for (let i = 0; i < size; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / size);
+  const mags = new Float32Array(frames * bins); let mx = -1e9;
+  const re = new Float64Array(size), im = new Float64Array(size);
+  for (let f = 0; f < frames; f++) {
+    for (let i = 0; i < size; i++) { re[i] = (x[f * hop + i] || 0) * win[i]; im[i] = 0; }
+    fft(re, im);
+    for (let b = 0; b < bins; b++) { const m = 10 * Math.log10(re[b] * re[b] + im[b] * im[b] + 1e-12); mags[f * bins + b] = m; if (m > mx) mx = m; }
+  }
+  return { mags, frames, bins, mx };
+}
+
+// =====================================================================
+// INTERFAZ
+// =====================================================================
+const $ = id => document.getElementById(id);
+const EXAMPLES = [
+  'Hola, soy una voz hecha de aire. ¿Me escuchas bien?',
+  'El perro de San Roque no tiene rabo.',
+  'Tres tristes tigres tragaban trigo en un trigal.',
+  'Mañana a las ocho llegamos a Santiago.',
+  '¿Dónde está la biblioteca?',
+  'Uno, dos, tres, cuatro, cinco.',
+];
+const PRESETS = {
+  'Hombre':  { f0: 110, size: 1.0,  tense: 0.62, breath: 0.1, vibrato: 0.2, expressivity: 1, center: 52 },
+  'Mujer':   { f0: 205, size: 1.16, tense: 0.55, breath: 0.25, vibrato: 0.25, expressivity: 1.1, center: 64 },
+  'Niño':    { f0: 280, size: 1.32, tense: 0.5, breath: 0.2, vibrato: 0.2, expressivity: 1.2, center: 67 },
+  'Gigante': { f0: 62,  size: 0.8,  tense: 0.72, breath: 0.15, vibrato: 0.1, expressivity: 0.8, center: 43 },
+  'Susurro': { f0: 140, size: 1.08, tense: 0.0, breath: 1.0, vibrato: 0, expressivity: 0.6, center: 57 },
+  'Robot':   { f0: 120, size: 1.0,  tense: 0.95, breath: 0, vibrato: 0, expressivity: 0, center: 52 },
+};
+const SLIDERS = [
+  { k: 'f0', label: 'Tono', min: 50, max: 400, step: 1, fmt: v => v + ' Hz', speakOnly: true },
+  { k: 'speed', label: 'Velocidad', min: 0.5, max: 1.8, step: 0.05, fmt: v => v.toFixed(2) + '×', speakOnly: true },
+  { k: 'size', label: 'Largo del tracto', min: 0.75, max: 1.45, step: 0.01, fmt: v => (17 / v).toFixed(1) + ' cm' },
+  { k: 'tense', label: 'Tensión vocal', min: 0, max: 1, step: 0.01, fmt: v => v < 0.3 ? 'soplada' : v > 0.8 ? 'presionada' : 'modal' },
+  { k: 'expressivity', label: 'Entonación', min: 0, max: 2, step: 0.05, fmt: v => v === 0 ? 'plana' : (v * 100).toFixed(0) + '%', speakOnly: true },
+  { k: 'vibrato', label: 'Vibrato', min: 0, max: 1, step: 0.01, fmt: v => (v * 100).toFixed(0) + '%' },
+  { k: 'breath', label: 'Aire', min: 0, max: 1, step: 0.01, fmt: v => (v * 100).toFixed(0) + '%' },
+];
+const NOTE_ES = ['Do', 'Do♯', 'Re', 'Re♯', 'Mi', 'Fa', 'Fa♯', 'Sol', 'Sol♯', 'La', 'La♯', 'Si'];
+const noteName = m => NOTE_ES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+const params = Object.assign({ speed: 1 }, PRESETS['Hombre']);
+let preset = 'Hombre', mode = 'speak';
+
+EXAMPLES.forEach(e => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = e.length > 34 ? e.slice(0, 32) + '…' : e; b.onclick = () => { $('text').value = e; go(); }; $('chips').appendChild(b); });
+function buildVoices() {
+  $('voices').innerHTML = '';
+  for (const name in PRESETS) {
+    const b = document.createElement('button'); b.className = 'voice' + (name === preset ? ' on' : ''); b.textContent = name;
+    b.onclick = () => { preset = name; Object.assign(params, PRESETS[name]); buildVoices(); syncSliders(); if (mode === 'sing' && song && song.notes) autoTranspose(); };
+    $('voices').appendChild(b);
+  }
+}
+const sliderEls = {};
+SLIDERS.forEach(s => {
+  const w = document.createElement('div'); w.className = 'sl';
+  w.innerHTML = `<label><span>${s.label}</span><b></b></label><input type="range" min="${s.min}" max="${s.max}" step="${s.step}">`;
+  const inp = w.querySelector('input'), out = w.querySelector('b');
+  inp.oninput = () => { params[s.k] = +inp.value; out.textContent = s.fmt(+inp.value); preset = null; buildVoices(); };
+  sliderEls[s.k] = { inp, out, s, w };
+  $('sliders').appendChild(w);
+});
+function syncSliders() { for (const k in sliderEls) { const { inp, out, s, w } = sliderEls[k]; inp.value = params[k]; out.textContent = s.fmt(+params[k]); w.classList.toggle('hidden', !!s.speakOnly && mode === 'sing'); } }
+buildVoices(); syncSliders();
+
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  mode = t.dataset.mode;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  $('speakPanel').classList.toggle('hidden', mode !== 'speak');
+  $('singPanel').classList.toggle('hidden', mode !== 'sing');
+  $('roll').classList.toggle('hidden', mode !== 'sing');
+  $('rollLbl').classList.toggle('hidden', mode !== 'sing');
+  $('play').innerHTML = mode === 'sing' ? '♪ Cantar' : '▶ Hablar';
+  stop(); syncSliders();
+  current = (mode === 'sing' ? cache.sing : cache.speak) || null;
+  refreshAfterRender(false);
+  drawAll(null);
+});
+
+// ---------- colores ----------
+let COL = {};
+function readColors() { const cs = getComputedStyle(document.documentElement); ['bg', 'panel', 'ink', 'muted', 'line', 'accent', 'hot', 'nose', 'tongue', 'tongue-fill'].forEach(k => COL[k] = cs.getPropertyValue('--' + k).trim()); }
+readColors();
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); if (current) specImg = buildSpecImage(current.spec); drawAll(null); }); } catch (e) {}
+function hexRgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function fitCanvas(c) {
+  const dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: r.width, h: r.height };
+}
+
+// ---------- corte sagital ----------
+function catmull(pts, steps) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    for (let t = 0; t < steps; t++) {
+      const u = t / steps, u2 = u * u, u3 = u2 * u;
+      out.push([0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * u + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * u2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * u3),
+                0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * u + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * u2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * u3)]);
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+function resample(poly, count) {
+  const L = [0]; for (let i = 1; i < poly.length; i++) L.push(L[i - 1] + Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1]));
+  const tot = L[L.length - 1], out = [];
+  for (let k = 0; k < count; k++) {
+    const s = tot * k / (count - 1); let i = 1; while (i < L.length - 1 && L[i] < s) i++;
+    const f = (s - L[i - 1]) / (L[i] - L[i - 1] || 1);
+    const dx = poly[i][0] - poly[i - 1][0], dy = poly[i][1] - poly[i - 1][1], m = Math.hypot(dx, dy) || 1;
+    out.push({ x: poly[i - 1][0] + dx * f, y: poly[i - 1][1] + dy * f, nx: dy / m, ny: -dx / m });
+  }
+  return out;
+}
+const WALL = resample(catmull([[150, 262], [146, 200], [146, 150], [158, 112], [196, 92], [250, 88], [300, 94], [330, 106]], 16), N);
+const NOSEP = resample(catmull([[WALL[NOSE_START].x, WALL[NOSE_START].y], [172, 74], [222, 56], [290, 54], [340, 68]], 14), NOSE_LEN);
+const NOSE_D = Array.from({ length: NOSE_LEN }, (_, i) => { const x = 2 * i / NOSE_LEN; return Math.min(1.9, x < 1 ? 0.4 + 1.6 * x : 0.5 + 1.5 * (2 - x)); });
+const SC = 13;
+let current = null, frameIdx = 0;
+const cache = { speak: null, sing: null };
+
+function drawHead() {
+  const { ctx, w, h } = fitCanvas($('head'));
+  ctx.clearRect(0, 0, w, h);
+  const s = Math.min(w / 400, h / 300); ctx.save(); ctx.translate((w - 400 * s) / 2, (h - 300 * s) / 2); ctx.scale(s, s);
+  ctx.strokeStyle = COL.line; ctx.lineWidth = 1.4; ctx.beginPath();
+  catmull([[120, 300], [118, 250], [96, 200], [92, 130], [118, 60], [190, 22], [270, 22], [318, 40], [344, 70], [352, 72], [372, 96], [358, 104], [346, 108], [350, 116], [352, 126], [344, 132], [348, 146], [340, 160], [318, 182], [270, 196], [230, 214], [214, 300]], 8)
+    .forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+  const f = current && current.frames[frameIdx];
+  const d = f ? f.d : (current ? current.segs[0].shape : profile(NEUTRAL));
+  const velum = f ? f.velum : 0.3;
+  const inner = WALL.map((p, i) => ({ x: p.x - p.nx * d[i] * SC, y: p.y - p.ny * d[i] * SC }));
+  ctx.beginPath(); inner.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.lineTo(316, 180); ctx.lineTo(228, 206); ctx.lineTo(186, 262); ctx.closePath();
+  ctx.fillStyle = COL['tongue-fill']; ctx.fill();
+  ctx.beginPath(); WALL.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  for (let i = N - 1; i >= 0; i--) ctx.lineTo(inner[i].x, inner[i].y);
+  ctx.closePath(); ctx.fillStyle = COL.bg; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = COL.ink; ctx.beginPath(); WALL.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+  ctx.strokeStyle = COL.tongue; ctx.lineWidth = 2.4; ctx.beginPath(); inner.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+  for (let i = 0; i < N; i++) {
+    const p = WALL[i], q = inner[i], closed = d[i] < 0.06;
+    ctx.strokeStyle = closed ? COL.hot : COL.accent; ctx.globalAlpha = closed ? 0.9 : 0.18 + 0.25 * (f ? f.voice : 0);
+    ctx.lineWidth = closed ? 2 : 1; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  const ninner = NOSEP.map((p, i) => { const dd = i === 0 ? velum : NOSE_D[i]; return { x: p.x - p.nx * dd * SC * 0.6, y: p.y - p.ny * dd * SC * 0.6 }; });
+  ctx.strokeStyle = COL.nose; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); NOSEP.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+  ctx.beginPath(); ninner.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+  ctx.globalAlpha = 1;
+  const vp = WALL[NOSE_START];
+  ctx.fillStyle = velum > 0.1 ? COL.nose : COL.muted;
+  ctx.beginPath(); ctx.arc(vp.x - vp.nx * 4, vp.y - vp.ny * 4, 3 + velum * 6, 0, Math.PI * 2); ctx.fill();
+  const gv = f ? f.voice : 0;
+  ctx.fillStyle = COL.accent; ctx.globalAlpha = 0.25 + 0.75 * Math.min(1, gv);
+  ctx.beginPath(); ctx.ellipse(WALL[0].x - 4, WALL[0].y + 6, 10, 3 + gv * 4 * (0.5 + 0.5 * Math.sin(performance.now() / 18)), 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  if (f && f.noise > 0.02) {
+    const i = Math.min(N - 1, Math.round(f.ni)), p = WALL[i], q = inner[i], cx = (p.x + q.x) / 2, cy = (p.y + q.y) / 2;
+    ctx.strokeStyle = COL.hot; ctx.globalAlpha = 0.6;
+    for (let k = 0; k < 6; k++) { const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 12 * Math.min(1, f.noise); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = COL.muted; ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.fillText('glotis', WALL[0].x - 50, WALL[0].y + 10); ctx.fillText('velo', vp.x - 34, vp.y + 4);
+  ctx.fillText('labios', 336, 128); ctx.fillText('nariz', 296, 46);
+  ctx.restore();
+  if (f) {
+    const sg = current.segs[f.seg];
+    $('r-f0').textContent = f.voice > 0.05 ? Math.round(f.f0) + ' Hz' : '—';
+    $('r-voz').textContent = Math.round(Math.min(1, f.voice) * 100) + '%';
+    $('r-fric').textContent = Math.round(Math.min(1, f.noise) * 100) + '%';
+    $('r-velo').textContent = f.velum > 0.1 ? 'abierto' : 'cerrado';
+    $('phon').textContent = sg && sg.p !== '_' ? '/' + sg.ipa + '/' + (sg.word ? ' · ' + sg.word : '') : 'pausa';
+  }
+}
+
+let specImg = null;
+function buildSpecImage(sp) {
+  if (!sp) return null;
+  const cv = document.createElement('canvas'); cv.width = sp.frames; cv.height = sp.bins;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(sp.frames, sp.bins);
+  const bg = hexRgb(COL.bg), ac = hexRgb(COL.accent), ink = hexRgb(COL.ink);
+  for (let f = 0; f < sp.frames; f++) for (let b = 0; b < sp.bins; b++) {
+    let v = (sp.mags[f * sp.bins + b] - (sp.mx - 70)) / 70; v = Math.max(0, Math.min(1, v)); v = v * v;
+    const o = ((sp.bins - 1 - b) * sp.frames + f) * 4;
+    const c = v < 0.6 ? bg.map((x, i) => x + (ac[i] - x) * (v / 0.6)) : ac.map((x, i) => x + (ink[i] - x) * ((v - 0.6) / 0.4));
+    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
+function scoreDur() { if (current) return current.duration; if (mode === 'sing' && song && song.notes) return song.len + 0.4; return 1; }
+function scoreWidth() {
+  const base = $('scroller').clientWidth, dur = scoreDur();
+  if (!current && !(mode === 'sing' && song && song.notes)) return base;
+  const pps = Math.min(150, Math.max(30, 9000 / dur));
+  return Math.max(base, Math.min(9000, dur * pps));
+}
+function drawScore(t) {
+  $('scoreInner').style.width = scoreWidth() + 'px';
+  const tl = fitCanvas($('timeline')), sc = fitCanvas($('spec'));
+  const rl = mode === 'sing' ? fitCanvas($('roll')) : null;
+  [tl, sc, rl].forEach(o => o && o.ctx.clearRect(0, 0, o.w, o.h));
+  const dur = scoreDur(), W = tl.w, x = s => s / dur * W;
+  if (rl && song && song.notes) drawRoll(rl, x);
+  if (!current) {
+    tl.ctx.fillStyle = COL.muted; tl.ctx.font = '12px "IBM Plex Mono", monospace';
+    tl.ctx.fillText(mode === 'sing' ? (song ? 'escribe la letra y pulsa Cantar' : 'carga una canción para empezar') : 'escribe algo y pulsa Hablar', 12, 36);
+  } else {
+    const ctx = tl.ctx;
+    ctx.font = '13px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    current.segs.forEach(s => {
+      if (s.p === '_') return;
+      const x0 = x(s.start), x1 = x(s.start + s.dur), vowel = !!VSHAPE[s.p];
+      ctx.fillStyle = vowel ? COL.accent : (s.noise ? COL.hot : COL.nose);
+      ctx.globalAlpha = vowel ? (s.stress ? 0.35 : 0.18) : 0.16;
+      ctx.fillRect(x0 + 0.5, 30, Math.max(1, x1 - x0 - 1), 30);
+      ctx.globalAlpha = 1; ctx.fillStyle = COL.ink;
+      if (x1 - x0 > 9) ctx.fillText(s.ipa, (x0 + x1) / 2, 45);
+      if (s.wordStart) {
+        ctx.textAlign = 'left'; ctx.fillStyle = COL.muted; ctx.font = '11px "Instrument Sans", sans-serif';
+        ctx.fillText(s.word, x0 + 2, 14); ctx.font = '13px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+        ctx.strokeStyle = COL.line; ctx.beginPath(); ctx.moveTo(x0, 4); ctx.lineTo(x0, 60); ctx.stroke();
+      }
+    });
+    if (current.kind === 'speak') {
+      ctx.strokeStyle = COL.accent; ctx.lineWidth = 1.5; ctx.beginPath();
+      let started = false; const fmin = params.f0 * 0.6, fmax = params.f0 * 1.7;
+      current.frames.forEach(f => {
+        const y = 58 - (f.f0 - fmin) / (fmax - fmin) * 30;
+        if (f.voice > 0.3) { if (!started) { ctx.moveTo(x(f.t), y); started = true; } else ctx.lineTo(x(f.t), y); } else started = false;
+      });
+      ctx.stroke();
+    }
+    if (specImg) { sc.ctx.imageSmoothingEnabled = true; sc.ctx.drawImage(specImg, 0, 0, sc.w, sc.h); }
+    sc.ctx.fillStyle = COL.muted; sc.ctx.font = '10px "IBM Plex Mono", monospace';
+    ['8k', '4k', '0'].forEach((l, i) => sc.ctx.fillText(l, 4, 10 + i * (sc.h - 14) / 2));
+  }
+  if (t != null) [tl, sc, rl].forEach(o => { if (!o) return; o.ctx.strokeStyle = COL.hot; o.ctx.lineWidth = 1.5; o.ctx.beginPath(); o.ctx.moveTo(x(t), 0); o.ctx.lineTo(x(t), o.h); o.ctx.stroke(); });
+}
+function drawRoll(o, x) {
+  const { ctx, h } = o, tr = +$('transpose').value, notes = song.notes;
+  let lo = Infinity, hi = -Infinity; notes.forEach(n => { lo = Math.min(lo, n.midi + tr); hi = Math.max(hi, n.midi + tr); });
+  lo -= 2; hi += 2; if (hi - lo < 12) { const c = (hi + lo) / 2; lo = c - 6; hi = c + 6; }
+  const y = m => h - 8 - (m - lo) / (hi - lo) * (h - 22);
+  ctx.strokeStyle = COL.line; ctx.lineWidth = 1; ctx.fillStyle = COL.muted; ctx.font = '10px "IBM Plex Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  for (let m = Math.ceil(lo); m <= hi; m++) if (m % 12 === 0 || m % 12 === 7) { ctx.beginPath(); ctx.moveTo(0, y(m)); ctx.lineTo(o.w, y(m)); ctx.stroke(); ctx.fillText(noteName(m), 4, y(m) - 6); }
+  // contorno detectado
+  ctx.strokeStyle = COL.muted; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.beginPath();
+  let st = false;
+  song.contour.forEach((m, k) => { if (isNaN(m)) { st = false; return; } const px = x(k * 0.01 + 0.016), py = y(m + tr); if (!st) { ctx.moveTo(px, py); st = true; } else ctx.lineTo(px, py); });
+  ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+  notes.forEach(n => {
+    const x0 = x(n.start), x1 = x(n.end), yy = y(n.midi + tr);
+    ctx.fillStyle = COL.accent; ctx.globalAlpha = 0.35 + 0.5 * n.level; ctx.fillRect(x0, yy - 4, Math.max(2, x1 - x0), 8); ctx.globalAlpha = 1;
+    if (n.label && x1 - x0 > 6) { ctx.fillStyle = COL.ink; ctx.font = '11px "IBM Plex Mono", monospace'; ctx.fillText(n.label, x0, yy - 11); }
+  });
+}
+function drawAll(t) { drawHead(); drawScore(t); }
+
+// ---------- canción ----------
+let actx = null, song = null;
+const getCtx = () => { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); return actx; };
+const fmtT = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+$('drop').onclick = () => $('file').click();
+['dragenter', 'dragover'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => $('drop').addEventListener(ev, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
+$('drop').addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadSong(f); });
+$('file').onchange = () => { const f = $('file').files[0]; if (f) loadSong(f); };
+
+async function loadSong(file) {
+  stop(); setStatus('decodificando…');
+  try {
+    const ab = await file.arrayBuffer();
+    const buf = await getCtx().decodeAudioData(ab);
+    let kara = null;
+    if (buf.numberOfChannels >= 2) {
+      kara = getCtx().createBuffer(2, buf.length, buf.sampleRate);
+      const l = buf.getChannelData(0), r = buf.getChannelData(1), o = kara.getChannelData(0), o2 = kara.getChannelData(1);
+      for (let i = 0; i < buf.length; i++) { const s = (l[i] - r[i]) * 0.7; o[i] = s; o2[i] = -s; }
+    }
+    song = { buf, kara, name: file.name, dur: buf.duration, notes: null, stale: true };
+    cache.sing = null; if (mode === 'sing') current = null;
+    const d = buf.duration;
+    ['from', 'to'].forEach(id => { $(id).max = d.toFixed(1); });
+    $('from').value = 0; $('to').value = Math.min(d, 40).toFixed(1);
+    $('karaoke').disabled = !kara;
+    $('songCtl').classList.remove('hidden');
+    $('songinfo').innerHTML = `<b>${file.name.replace(/[<>&]/g, '')}</b> · ${fmtT(d)} · ${buf.numberOfChannels === 1 ? 'mono' : 'estéreo'}`;
+    updRegionLbl();
+    await analyze();
+  } catch (e) { setStatus('no pude leer ese archivo'); console.error(e); }
+}
+function region() { let a = +$('from').value, b = +$('to').value; if (b < a + 2) b = Math.min(song.dur, a + 2); return [a, b]; }
+function updRegionLbl() { const [a, b] = region(); $('vFrom').textContent = fmtT(a); $('vTo').textContent = fmtT(b) + ' (' + (b - a).toFixed(0) + ' s)'; }
+['from', 'to'].forEach(id => $(id).oninput = () => { updRegionLbl(); if (song) { song.stale = true; $('melinfo').textContent = 'tramo cambiado: vuelve a detectar'; } });
+$('analyze').onclick = () => analyze();
+
+let job = null;
+const newJob = () => { if (job) job.cancelled = true; job = { cancelled: false }; return job; };
+const setProg = p => { $('prog').style.width = (p * 100).toFixed(1) + '%'; };
+
+async function analyze() {
+  if (!song) return;
+  const j = newJob(), [a, b] = region();
+  $('analyze').disabled = true;
+  try {
+    const res = await analyzeMelody(song.buf, a, b, p => { setProg(p); setStatus('detectando melodía ' + Math.round(p * 100) + '%'); }, j);
+    Object.assign(song, res, { start: a, end: b, stale: false });
+    cache.sing = null; if (mode === 'sing') current = null;
+    if (song.notes.length) {
+      const ms = song.notes.map(n => n.midi).sort((p, q) => p - q);
+      song.median = ms[ms.length >> 1];
+      $('melinfo').textContent = `${song.notes.length} notas · ${noteName(ms[0])}–${noteName(ms[ms.length - 1])}`;
+      autoTranspose();
+    } else $('melinfo').textContent = 'no encontré melodía clara en este tramo';
+    updSyl();
+    setStatus('melodía lista'); setProg(0);
+  } catch (e) { if (e.message !== 'cancel') { setStatus('error al analizar'); console.error(e); } }
+  $('analyze').disabled = false;
+  drawAll(null);
+}
+function autoTranspose() {
+  if (!song || song.median == null) return;
+  const center = PRESETS[preset] ? PRESETS[preset].center : 52;
+  const tr = Math.round((center - song.median) / 12) * 12;
+  $('transpose').value = Math.max(-24, Math.min(24, tr)); updLbls(); drawAll(null);
+}
+function updSyl() {
+  const n = lyricsSyllables($('lyrics').value).length;
+  $('sylinfo').textContent = (n ? n + ' sílabas' : 'vacía → «la»') + (song && song.notes ? ' · ' + song.notes.length + ' notas' : '');
+}
+$('lyrics').addEventListener('input', updSyl);
+function updLbls() {
+  const tr = +$('transpose').value; $('vTr').textContent = (tr > 0 ? '+' : '') + tr + ' st';
+  $('vAt').textContent = Math.round($('autotune').value * 100) + '%';
+  $('vOg').textContent = Math.round($('orig').value * 100) + '%';
+}
+['transpose', 'autotune', 'orig'].forEach(id => $(id).addEventListener('input', () => { updLbls(); if (id === 'transpose') drawAll(null); if (id === 'orig' && origGain) origGain.gain.value = +$('orig').value; }));
+updLbls();
+
+function songTrack() {
+  const tr = +$('transpose').value, at = +$('autotune').value;
+  const nFr = Math.ceil((song.len + 1) * 100), track = new Float32Array(nFr);
+  for (const n of song.notes) for (let k = n.k0; k <= n.k1 + 1 && k < nFr; k++) {
+    const raw = isNaN(song.contour[k]) ? n.midi : song.contour[k];
+    const m = raw * (1 - at) + n.midi * at + tr;
+    track[k + 2] = 440 * Math.pow(2, (m - 69) / 12);
+  }
+  return track;
+}
+
+// ---------- render / reproducción ----------
+let src = null, origSrc = null, origGain = null, startAt = 0, offset = 0, raf = 0;
+const setStatus = s => { $('status').textContent = s; };
+const keyNow = () => mode === 'speak'
+  ? 'S|' + $('text').value + JSON.stringify(params)
+  : 'C|' + $('lyrics').value + JSON.stringify(params) + $('transpose').value + '|' + $('autotune').value + '|' + (song ? song.start + '-' + song.end + (song.stale ? 'x' : '') : '');
+
+async function go(from = 0) {
+  stop();
+  if (mode === 'speak' && !$('text').value.trim()) return;
+  if (mode === 'sing' && !song) { $('file').click(); return; }
+  $('play').disabled = true;
+  if (mode === 'sing' && song.stale) await analyze();
+  const j = newJob();
+  try {
+    if (mode === 'sing' && (!song.notes || !song.notes.length)) { setStatus('no hay notas para cantar'); return; }
+    const k = keyNow(), cached = cache[mode];
+    if (!cached || cached.key !== k) {
+      const t0 = performance.now();
+      let segs, opts = Object.assign({}, params);
+      if (mode === 'speak') segs = textToSegments($('text').value, params);
+      else {
+        let syls = lyricsSyllables($('lyrics').value);
+        if (!syls.length) syls = song.notes.map(() => LA);
+        segs = buildSongSegs(assignSyllables(song.notes, syls), song.len);
+        opts.f0Track = songTrack();
+      }
+      const res = await renderSegs(segs, opts, p => { setProg(p); setStatus('sintetizando ' + Math.round(p * 100) + '%'); }, j);
+      res.kind = mode; res.key = k; res.spec = spectrogram(res.audio, res.sampleRate); res.took = (performance.now() - t0) / 1000;
+      cache[mode] = res;
+    }
+    current = cache[mode];
+    refreshAfterRender(true);
+    setProg(0);
+    playBuffer(from);
+  } catch (e) { if (e.message !== 'cancel') { setStatus('error: ' + e.message); console.error(e); } }
+  finally { $('play').disabled = false; }
+}
+function refreshAfterRender(status) {
+  if (!current) { $('ipa').textContent = ''; $('dl').disabled = true; specImg = null; return; }
+  specImg = buildSpecImage(current.spec);
+  $('dl').disabled = false;
+  if (current.kind === 'speak') $('ipa').textContent = '[' + current.segs.map(s => (s.stress ? 'ˈ' : '') + s.ipa).join('') + ']';
+  else $('ipa').textContent = song && song.notes ? song.notes.map(n => n.label || '').filter(l => l && l !== '~').join(' ') : '';
+  if (status) setStatus(`${current.duration.toFixed(1)} s · sintetizado en ${current.took.toFixed(1)} s`);
+}
+function playBuffer(from) {
+  const ctx = getCtx(); if (ctx.state === 'suspended') ctx.resume();
+  const buf = ctx.createBuffer(1, current.audio.length, current.sampleRate);
+  buf.getChannelData(0).set(current.audio);
+  src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
+  const when = ctx.currentTime + 0.06;
+  offset = from; startAt = when;
+  if (current.kind === 'sing' && song && +$('orig').value > 0) {
+    origSrc = ctx.createBufferSource();
+    origSrc.buffer = $('karaoke').checked && song.kara ? song.kara : song.buf;
+    origGain = ctx.createGain(); origGain.gain.value = +$('orig').value;
+    origSrc.connect(origGain); origGain.connect(ctx.destination);
+    origSrc.start(when, song.start + from, Math.max(0.01, song.len - from));
+  }
+  src.start(when, from);
+  const mine = src;
+  src.onended = () => { if (src === mine) { stop(); frameIdx = current.frames.length - 1; drawAll(null); } };
+  $('stop').disabled = false;
+  const loop = () => {
+    if (src !== mine) return;
+    const t = Math.max(0, offset + ctx.currentTime - startAt);
+    frameIdx = Math.min(current.frames.length - 1, Math.max(0, Math.floor(t / 0.01)));
+    drawAll(t);
+    const sw = $('scroller'), px = t / scoreDur() * scoreWidth();
+    if (px > sw.scrollLeft + sw.clientWidth - 60 || px < sw.scrollLeft) sw.scrollLeft = px - 60;
+    raf = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function stop() {
+  if (job) job.cancelled = true;
+  [src, origSrc].forEach(s => { if (s) { try { s.onended = null; s.stop(); } catch (e) {} } });
+  src = null; origSrc = null; origGain = null;
+  cancelAnimationFrame(raf); $('stop').disabled = true; $('play').disabled = false; setProg(0);
+}
+
+$('play').onclick = () => go(0);
+$('stop').onclick = () => { stop(); drawAll(null); };
+$('dl').onclick = async () => {
+  if (!current) return;
+  let chans = [current.audio], name = 'voz-tracto.wav';
+  const og = +$('orig').value;
+  if (current.kind === 'sing' && song && og > 0) {
+    setStatus('mezclando…');
+    const len = current.audio.length, off = new OfflineAudioContext(2, len, current.sampleRate);
+    const s = off.createBufferSource(); s.buffer = $('karaoke').checked && song.kara ? song.kara : song.buf;
+    const g = off.createGain(); g.gain.value = og; s.connect(g); g.connect(off.destination);
+    s.start(0, song.start, song.len);
+    const r = await off.startRendering();
+    const L = new Float32Array(len), R = new Float32Array(len), a = r.getChannelData(0), b = r.getChannelData(1);
+    let pk = 1e-9;
+    for (let i = 0; i < len; i++) { L[i] = current.audio[i] * 0.8 + a[i]; R[i] = current.audio[i] * 0.8 + b[i]; pk = Math.max(pk, Math.abs(L[i]), Math.abs(R[i])); }
+    const gn = pk > 0.98 ? 0.98 / pk : 1; for (let i = 0; i < len; i++) { L[i] *= gn; R[i] *= gn; }
+    chans = [L, R]; name = 'tracto-cancion.wav'; setStatus('listo');
+  }
+  const blob = new Blob([toWav(chans, current.sampleRate)], { type: 'audio/wav' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+$('text').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(0); } });
+$('lyrics').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(0); } });
+['timeline', 'roll', 'spec'].forEach(id => $(id).addEventListener('click', e => {
+  if (!current || current.key !== keyNow()) { if (current) go(0); return; }
+  const r = $(id).getBoundingClientRect(), t = (e.clientX - r.left) / r.width * scoreDur();
+  stop(); playBuffer(Math.max(0, Math.min(current.duration - 0.05, t)));
+}));
+window.addEventListener('resize', () => drawAll(null));
+drawAll(null);
+</script>
+</body>
+</html>
