@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!doctype html>
 <html lang="es">
 <head>
@@ -87,6 +88,20 @@ canvas { display: block; width: 100%; }
 .scroller { overflow-x: auto; }
 .note { margin-top: 14px; font-size: 13px; color: var(--muted); }
 .note code { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.part { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 6px 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.part:first-child { border-top: 0; }
+.part.off .pname, .part.off select, .part.off input[type=range] { opacity: .45; }
+.pname { display: flex; gap: 8px; align-items: center; min-width: 0; cursor: pointer; border-radius: 6px; padding: 2px 4px; }
+.pname.focus { background: var(--accent-soft); }
+.pname .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pname div { min-width: 0; }
+.pname b { display: block; font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pname small { display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.part select, .part input[type=text] { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px; font: 500 12.5px "Instrument Sans", sans-serif; max-width: 100%; }
+.part .vol { grid-column: 2 / -1; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.part .vol input[type=range] { flex: 1; }
+.part .vol input[type=text] { flex: 2; min-width: 0; }
+@media (max-width: 520px) { .part { grid-template-columns: auto minmax(0, 1fr) auto; } .part .oct { grid-column: 2; } }
 .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 10px; }
 .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
 </style>
@@ -103,6 +118,7 @@ canvas { display: block; width: 100%; }
       <div class="tabs" role="tablist">
         <button class="tab on" data-mode="speak">Hablar texto</button>
         <button class="tab" data-mode="sing">Cantar canción</button>
+        <button class="tab" data-mode="midi">Coro MIDI</button>
       </div>
 
       <!-- HABLAR -->
@@ -138,17 +154,36 @@ canvas { display: block; width: 100%; }
         </div>
       </div>
 
+      <!-- MIDI -->
+      <div id="midiPanel" class="hidden">
+        <input type="file" id="mfile" accept=".mid,.midi,.kar,audio/midi,audio/x-midi" class="hidden">
+        <div class="drop" id="mdrop"><strong>Cargar archivo MIDI (.mid, .kar)</strong>cada pista o instrumento se canta con su propia voz; la batería, en beatbox.</div>
+        <div class="songinfo" id="midiinfo"></div>
+        <div id="midiCtl" class="hidden">
+          <div class="sliders" style="margin-top:14px">
+            <div class="sl"><label><span>Desde</span><b id="mvFrom"></b></label><input type="range" id="mfrom" min="0" max="10" step="0.5" value="0"></div>
+            <div class="sl"><label><span>Hasta</span><b id="mvTo"></b></label><input type="range" id="mto" min="0" max="10" step="0.5" value="10"></div>
+          </div>
+          <div class="label" style="margin-top:16px"><span>Voces</span><span id="mcost"></span></div>
+          <div id="parts"></div>
+          <p class="hint">Toca el nombre de una parte para ver su tracto en el corte sagital. Los acordes dentro de una parte se reparten en hasta 3 voces. La letra incluida en el MIDI se pronuncia con reglas del español.</p>
+        </div>
+      </div>
+
       <div class="actions">
         <button class="btn primary" id="play">▶ Hablar</button>
         <button class="btn" id="stop" disabled>■ Detener</button>
-        <button class="btn" id="dl" disabled>↓ WAV</button>
+        <button class="btn" id="dl" disabled>↓ Descargar</button>
         <span class="status" id="status">listo</span>
       </div>
       <div class="bar"><i id="prog"></i></div>
       <div class="ipa" id="ipa"></div>
 
-      <div class="label" style="margin-top:18px"><span>Voz</span></div>
-      <div class="voices" id="voices"></div>
+      <div id="voiceBlock">
+        <div class="label" style="margin-top:18px"><span>Voz</span></div>
+        <div class="voices" id="voices"></div>
+      </div>
+      <div class="label hidden" id="midiGlobalLbl" style="margin-top:18px"><span>Ajustes comunes</span></div>
       <div class="sliders" id="sliders"></div>
     </section>
 
@@ -482,6 +517,10 @@ function buildSongSegs(slots, total) {
     } else if (desired - t > 0.06) rest(desired - t);
     else if (desired > t) { if (last()) { last().dur += desired - t; t = desired; } else rest(desired - t); }
     syl.onset.forEach((c, k) => cons(c, on[k], lvl, syl, k === 0));
+    if (!syl.onset.length && !syl.melisma) {
+      const L = last();
+      if (L && VSHAPE[L.p] && L.dur > 0.09 && sl.start - t < 0.03) { L.dur -= 0.035; t -= 0.035; push({ p: L.p, dur: 0.035, ipa: '', level: 0.12 }); }
+    }
     const end = Math.max(sl.end, t + 0.08);
     const mi = Math.max(0, syl.nuc.findIndex(v => !v.glide));
     const onG = syl.nuc.slice(0, mi), offG = syl.nuc.slice(mi + 1), main = syl.nuc[mi];
@@ -845,8 +884,8 @@ const PRESETS = {
 const SLIDERS = [
   { k: 'f0', label: 'Tono', min: 50, max: 400, step: 1, fmt: v => v + ' Hz', speakOnly: true },
   { k: 'speed', label: 'Velocidad', min: 0.5, max: 1.8, step: 0.05, fmt: v => v.toFixed(2) + '×', speakOnly: true },
-  { k: 'size', label: 'Largo del tracto', min: 0.75, max: 1.45, step: 0.01, fmt: v => (17 / v).toFixed(1) + ' cm' },
-  { k: 'tense', label: 'Tensión vocal', min: 0, max: 1, step: 0.01, fmt: v => v < 0.3 ? 'soplada' : v > 0.8 ? 'presionada' : 'modal' },
+  { k: 'size', label: 'Largo del tracto', min: 0.75, max: 1.45, step: 0.01, fmt: v => (17 / v).toFixed(1) + ' cm', midiHide: true },
+  { k: 'tense', label: 'Tensión vocal', min: 0, max: 1, step: 0.01, fmt: v => v < 0.3 ? 'soplada' : v > 0.8 ? 'presionada' : 'modal', midiHide: true },
   { k: 'expressivity', label: 'Entonación', min: 0, max: 2, step: 0.05, fmt: v => v === 0 ? 'plana' : (v * 100).toFixed(0) + '%', speakOnly: true },
   { k: 'vibrato', label: 'Vibrato', min: 0, max: 1, step: 0.01, fmt: v => (v * 100).toFixed(0) + '%' },
   { k: 'breath', label: 'Aire', min: 0, max: 1, step: 0.01, fmt: v => (v * 100).toFixed(0) + '%' },
@@ -874,7 +913,8 @@ SLIDERS.forEach(s => {
   sliderEls[s.k] = { inp, out, s, w };
   $('sliders').appendChild(w);
 });
-function syncSliders() { for (const k in sliderEls) { const { inp, out, s, w } = sliderEls[k]; inp.value = params[k]; out.textContent = s.fmt(+params[k]); w.classList.toggle('hidden', !!s.speakOnly && mode === 'sing'); } }
+function syncSliders() { for (const k in sliderEls) { const { inp, out, s, w } = sliderEls[k]; inp.value = params[k]; out.textContent = s.fmt(+params[k]); w.classList.toggle('hidden', (!!s.speakOnly && mode !== 'speak') || (!!s.midiHide && mode === 'midi')); }
+  $('voiceBlock').classList.toggle('hidden', mode === 'midi'); $('midiGlobalLbl').classList.toggle('hidden', mode !== 'midi'); }
 buildVoices(); syncSliders();
 
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
@@ -882,11 +922,12 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
   $('speakPanel').classList.toggle('hidden', mode !== 'speak');
   $('singPanel').classList.toggle('hidden', mode !== 'sing');
-  $('roll').classList.toggle('hidden', mode !== 'sing');
-  $('rollLbl').classList.toggle('hidden', mode !== 'sing');
-  $('play').innerHTML = mode === 'sing' ? '♪ Cantar' : '▶ Hablar';
+  $('midiPanel').classList.toggle('hidden', mode !== 'midi');
+  $('roll').classList.toggle('hidden', mode === 'speak');
+  $('rollLbl').classList.toggle('hidden', mode === 'speak');
+  $('play').innerHTML = mode === 'sing' ? '♪ Cantar' : mode === 'midi' ? '♫ Interpretar' : '▶ Hablar';
   stop(); syncSliders();
-  current = (mode === 'sing' ? cache.sing : cache.speak) || null;
+  current = cache[mode] || null;
   refreshAfterRender(false);
   drawAll(null);
 });
@@ -935,7 +976,7 @@ const NOSEP = resample(catmull([[WALL[NOSE_START].x, WALL[NOSE_START].y], [172, 
 const NOSE_D = Array.from({ length: NOSE_LEN }, (_, i) => { const x = 2 * i / NOSE_LEN; return Math.min(1.9, x < 1 ? 0.4 + 1.6 * x : 0.5 + 1.5 * (2 - x)); });
 const SC = 13;
 let current = null, frameIdx = 0;
-const cache = { speak: null, sing: null };
+const cache = { speak: null, sing: null, midi: null };
 
 function drawHead() {
   const { ctx, w, h } = fitCanvas($('head'));
@@ -1010,23 +1051,31 @@ function buildSpecImage(sp) {
   return cv;
 }
 
-function scoreDur() { if (current) return current.duration; if (mode === 'sing' && song && song.notes) return song.len + 0.4; return 1; }
+function scoreDur() {
+  if (current) return current.duration;
+  if (mode === 'sing' && song && song.notes) return song.len + 0.4;
+  if (mode === 'midi' && midi) { const [a, b] = midiRegion(); return b - a + 0.4; }
+  return 1;
+}
 function scoreWidth() {
   const base = $('scroller').clientWidth, dur = scoreDur();
-  if (!current && !(mode === 'sing' && song && song.notes)) return base;
+  if (!current && !(mode === 'sing' && song && song.notes) && !(mode === 'midi' && midi)) return base;
   const pps = Math.min(150, Math.max(30, 9000 / dur));
   return Math.max(base, Math.min(9000, dur * pps));
 }
 function drawScore(t) {
   $('scoreInner').style.width = scoreWidth() + 'px';
   const tl = fitCanvas($('timeline')), sc = fitCanvas($('spec'));
-  const rl = mode === 'sing' ? fitCanvas($('roll')) : null;
+  const rl = mode !== 'speak' ? fitCanvas($('roll')) : null;
   [tl, sc, rl].forEach(o => o && o.ctx.clearRect(0, 0, o.w, o.h));
   const dur = scoreDur(), W = tl.w, x = s => s / dur * W;
-  if (rl && song && song.notes) drawRoll(rl, x);
+  if (rl && mode === 'sing' && song && song.notes) drawRoll(rl, x);
+  if (rl && mode === 'midi' && midi) drawMidiRoll(rl, x);
   if (!current) {
     tl.ctx.fillStyle = COL.muted; tl.ctx.font = '12px "IBM Plex Mono", monospace';
-    tl.ctx.fillText(mode === 'sing' ? (song ? 'escribe la letra y pulsa Cantar' : 'carga una canción para empezar') : 'escribe algo y pulsa Hablar', 12, 36);
+    const msg = mode === 'sing' ? (song ? 'escribe la letra y pulsa Cantar' : 'carga una canción para empezar')
+      : mode === 'midi' ? (midi ? 'elige las voces y pulsa Interpretar' : 'carga un archivo MIDI para empezar') : 'escribe algo y pulsa Hablar';
+    tl.ctx.fillText(msg, 12, 36);
   } else {
     const ctx = tl.ctx;
     ctx.font = '13px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1172,17 +1221,357 @@ function songTrack() {
   return track;
 }
 
+// =====================================================================
+// MIDI: lectura, partes, coro
+// =====================================================================
+function decodeText(bytes) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+  catch (e) { try { return new TextDecoder('windows-1252').decode(bytes); } catch (e2) { return String.fromCharCode(...bytes); } }
+}
+function parseMidi(ab) {
+  const u8 = new Uint8Array(ab); let p = 0;
+  const str = n => { let s = ''; for (let i = 0; i < n; i++) s += String.fromCharCode(u8[p + i]); p += n; return s; };
+  const u32 = () => { const v = ((u8[p] << 24) | (u8[p + 1] << 16) | (u8[p + 2] << 8) | u8[p + 3]) >>> 0; p += 4; return v; };
+  const u16 = () => { const v = (u8[p] << 8) | u8[p + 1]; p += 2; return v; };
+  const vlq = () => { let v = 0, b; do { b = u8[p++]; v = (v * 128) + (b & 127); } while ((b & 128) && p < u8.length); return v; };
+  let start = -1;
+  for (let i = 0; i < u8.length - 4; i++) if (u8[i] === 0x4d && u8[i + 1] === 0x54 && u8[i + 2] === 0x68 && u8[i + 3] === 0x64) { start = i; break; }
+  if (start < 0) throw new Error('no es un archivo MIDI');
+  p = start + 4; const hl = u32(); u16(); const ntr = u16(), div = u16(); p = start + 8 + hl;
+  const tracks = [], tempos = [];
+  for (let t = 0; t < ntr && p < u8.length - 8; t++) {
+    const id = str(4), len = u32(), end = Math.min(u8.length, p + len);
+    if (id !== 'MTrk') { p = end; continue; }
+    let tick = 0, rs = 0;
+    const tr = { name: '', events: [], lyrics: [], texts: [], programs: {}, endTick: 0 };
+    while (p < end) {
+      tick += vlq();
+      let st = u8[p];
+      if (st & 0x80) { p++; if (st < 0xF0) rs = st; }
+      else { if (!rs) { p++; continue; } st = rs; }
+      if (st === 0xFF) {
+        const type = u8[p++], l = vlq(), data = u8.subarray(p, p + l); p += l;
+        if (type === 0x51 && l === 3) tempos.push({ tick, us: (data[0] << 16) | (data[1] << 8) | data[2] });
+        else if (type === 0x03 && !tr.name) tr.name = decodeText(data).trim();
+        else if (type === 0x05) tr.lyrics.push({ tick, text: decodeText(data) });
+        else if (type === 0x01) tr.texts.push({ tick, text: decodeText(data) });
+        else if (type === 0x2F) break;
+      } else if (st === 0xF0 || st === 0xF7) { p += vlq(); }
+      else {
+        const hi = st & 0xF0, ch = st & 15;
+        if (hi === 0xC0 || hi === 0xD0) { const a = u8[p++]; if (hi === 0xC0 && !(ch in tr.programs)) tr.programs[ch] = a; }
+        else {
+          const a = u8[p++], b = u8[p++];
+          if (hi === 0x90 && b > 0) tr.events.push({ tick, on: true, ch, note: a, vel: b });
+          else if (hi === 0x80 || hi === 0x90) tr.events.push({ tick, on: false, ch, note: a });
+        }
+      }
+    }
+    tr.endTick = tick; p = end; tracks.push(tr);
+  }
+  // ticks -> segundos
+  let toSec;
+  if (div & 0x8000) { const fps = 256 - (div >> 8), tps = fps * (div & 255); toSec = t => t / tps; }
+  else {
+    const tpq = div || 480;
+    tempos.sort((a, b) => a.tick - b.tick);
+    if (!tempos.length || tempos[0].tick > 0) tempos.unshift({ tick: 0, us: 500000 });
+    let sec = 0; const map = tempos.map((tp, i) => { if (i) sec += (tp.tick - tempos[i - 1].tick) * tempos[i - 1].us / 1e6 / tpq; return { tick: tp.tick, us: tp.us, sec }; });
+    toSec = t => { let lo = 0, hi = map.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (map[m].tick <= t) lo = m; else hi = m - 1; } const s = map[lo]; return s.sec + (t - s.tick) * s.us / 1e6 / tpq; };
+  }
+  // partes = (pista, canal)
+  const parts = [];
+  tracks.forEach((tr, ti) => {
+    const open = new Map(), byCh = {};
+    for (const e of tr.events) {
+      const key = e.ch * 128 + e.note;
+      if (e.on) { if (!open.has(key)) open.set(key, []); open.get(key).push(e); }
+      else { const q = open.get(key); if (q && q.length) { const on = q.shift(); (byCh[e.ch] = byCh[e.ch] || []).push({ start: toSec(on.tick), end: toSec(e.tick), midi: on.note, level: on.vel / 127 }); } }
+    }
+    for (const [key, q] of open) for (const on of q) (byCh[on.ch] = byCh[on.ch] || []).push({ start: toSec(on.tick), end: toSec(tr.endTick), midi: on.note, level: on.vel / 127 });
+    for (const ch in byCh) {
+      const notes = byCh[ch].filter(n => n.end > n.start).sort((a, b) => a.start - b.start || b.midi - a.midi);
+      if (!notes.length) continue;
+      const c = +ch, prog = tr.programs[c] ?? 0, drum = c === 9;
+      const fam = ['Piano', 'Percusión cromática', 'Órgano', 'Guitarra', 'Bajo', 'Cuerdas', 'Ensamble', 'Metales', 'Lengüetas', 'Vientos', 'Sinte solista', 'Sinte pad', 'Sinte efectos', 'Étnico', 'Percusión', 'Efectos'][prog >> 3];
+      parts.push({ track: ti, ch: c, drum, program: prog, name: (tr.name && !/^track\s*\d*$/i.test(tr.name) ? tr.name : (drum ? 'Batería' : fam)), notes });
+    }
+  });
+  // letra (FF05, o texto estilo .kar)
+  let lyr = [];
+  tracks.forEach(tr => tr.lyrics.forEach(l => lyr.push({ t: toSec(l.tick), text: l.text })));
+  if (!lyr.length) tracks.forEach(tr => { const tx = tr.texts.filter(x => !x.text.startsWith('@')); if (tx.length > 10) tx.forEach(l => lyr.push({ t: toSec(l.tick), text: l.text })); });
+  lyr = lyr.map(l => ({ t: l.t, text: l.text.replace(/[\/\\\r\n_]/g, ' ').replace(/-/g, '').trim() })).filter(l => /[a-zA-ZñÑáéíóúÁÉÍÓÚüÜ]/.test(l.text)).sort((a, b) => a.t - b.t);
+  const dur = Math.max(0, ...parts.map(pt => pt.notes[pt.notes.length - 1] ? Math.max(...pt.notes.map(n => n.end)) : 0));
+  return { parts, lyrics: lyr, dur };
+}
+
+const PART_COLORS = ['#2bb673', '#e0703a', '#7a6ff0', '#d9467a', '#2a9fd6', '#c9a227', '#3fb8af', '#a05cc8', '#8a8f86'];
+const SYL_OPTS = { a: 'a', o: 'o', u: 'u', la: 'la', lu: 'lu', du: 'du', na: 'na', pa: 'pa' };
+let midi = null;
+function midiRegion() { if (!midi) return [0, 1]; let a = +$('mfrom').value, b = +$('mto').value; if (b < a + 2) b = Math.min(midi.dur, a + 2); return [a, b]; }
+
+$('mdrop').onclick = () => $('mfile').click();
+['dragenter', 'dragover'].forEach(ev => $('mdrop').addEventListener(ev, e => { e.preventDefault(); $('mdrop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => $('mdrop').addEventListener(ev, e => { e.preventDefault(); $('mdrop').classList.remove('over'); }));
+$('mdrop').addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadMidi(f); });
+$('mfile').onchange = () => { const f = $('mfile').files[0]; if (f) loadMidi(f); };
+
+async function loadMidi(file) {
+  stop();
+  try {
+    const m = parseMidi(await file.arrayBuffer());
+    if (!m.parts.length) throw new Error('sin notas');
+    // ¿qué parte lleva la letra?
+    let lyricPart = -1;
+    if (m.lyrics.length) {
+      let best = 0;
+      m.parts.forEach((pt, i) => {
+        if (pt.drum) return;
+        let hits = 0, k = 0;
+        for (const l of m.lyrics) { while (k < pt.notes.length && pt.notes[k].start < l.t - 0.04) k++; if (k < pt.notes.length && Math.abs(pt.notes[k].start - l.t) <= 0.04) hits++; }
+        if (hits > best) { best = hits; lyricPart = i; }
+      });
+    }
+    let enabled = 0;
+    m.parts.forEach((pt, i) => {
+      const ms = pt.notes.map(n => n.midi).sort((a, b) => a - b), med = ms[ms.length >> 1];
+      pt.range = [ms[0], ms[ms.length - 1]]; pt.median = med;
+      pt.lines = splitLines(pt.notes, 3);
+      pt.color = PART_COLORS[i % PART_COLORS.length];
+      const voice = pt.drum ? 'Beatbox' : med < 45 ? 'Gigante' : med < 57 ? 'Hombre' : med < 67 ? 'Mujer' : 'Niño';
+      const center = pt.drum ? 0 : PRESETS[voice].center;
+      const on = pt.drum ? false : enabled < 5;
+      if (on) enabled++;
+      pt.cfg = { on, voice, oct: pt.drum ? 0 : Math.max(-2, Math.min(2, Math.round((center - med) / 12))), syl: i === lyricPart ? 'midi' : ['la', 'du', 'u', 'na', 'o'][i % 5], text: '', vol: pt.drum ? 0.6 : 0.85 };
+    });
+    if (lyricPart >= 0 && !m.parts[lyricPart].cfg.on) m.parts[lyricPart].cfg.on = true;
+    m.name = file.name; m.lyricPart = lyricPart;
+    m.focus = lyricPart >= 0 ? lyricPart : m.parts.findIndex(pt => pt.cfg.on);
+    midi = m; cache.midi = null; if (mode === 'midi') current = null;
+    $('mfrom').max = $('mto').max = m.dur.toFixed(1);
+    $('mfrom').value = 0; $('mto').value = Math.min(m.dur, 30).toFixed(1);
+    $('midiCtl').classList.remove('hidden');
+    $('midiinfo').innerHTML = `<b>${file.name.replace(/[<>&]/g, '')}</b> · ${fmtT(m.dur)} · ${m.parts.length} partes${m.lyrics.length ? ' · con letra' : ''}`;
+    updMidiRegion(); renderParts(); refreshAfterRender(false); drawAll(null);
+    setStatus('MIDI listo');
+  } catch (e) { setStatus('no pude leer ese MIDI'); console.error(e); }
+}
+function splitLines(notes, max) {
+  const lines = [];
+  for (const n of notes) {
+    let li = lines.findIndex(l => l.end <= n.start + 0.01);
+    if (li < 0) { if (lines.length >= max) continue; lines.push({ end: -1, notes: [] }); li = lines.length - 1; }
+    lines[li].notes.push(n); lines[li].end = n.end;
+  }
+  return lines.map(l => l.notes);
+}
+function updMidiRegion() { const [a, b] = midiRegion(); $('mvFrom').textContent = fmtT(a); $('mvTo').textContent = fmtT(b) + ' (' + (b - a).toFixed(0) + ' s)'; updCost(); }
+['mfrom', 'mto'].forEach(id => $(id).oninput = () => { updMidiRegion(); drawAll(null); });
+function activeJobs() {
+  if (!midi) return 0;
+  const [a, b] = midiRegion();
+  return midi.parts.reduce((s, pt) => s + (pt.cfg.on ? (pt.drum ? 1 : pt.lines.filter(l => l.some(n => n.start >= a && n.start < b)).length) : 0), 0);
+}
+function updCost() { if (!midi) return; const n = activeJobs(), [a, b] = midiRegion(); $('mcost').textContent = n + (n === 1 ? ' voz' : ' voces') + ' · ' + (b - a).toFixed(0) + ' s'; }
+
+function renderParts() {
+  const box = $('parts'); box.innerHTML = '';
+  midi.parts.forEach((pt, i) => {
+    const row = document.createElement('div'); row.className = 'part' + (pt.cfg.on ? '' : ' off');
+    const poly = pt.lines.length > 1 ? ` · acordes ×${pt.lines.length}` : '';
+    const info = pt.drum ? `${pt.notes.length} golpes` : `${pt.notes.length} notas · ${noteName(pt.range[0])}–${noteName(pt.range[1])}${poly}`;
+    const voiceOpts = pt.drum ? '<option>Beatbox</option>' : Object.keys(PRESETS).map(v => `<option${v === pt.cfg.voice ? ' selected' : ''}>${v}</option>`).join('');
+    const octOpts = [-2, -1, 0, 1, 2].map(o => `<option value="${o}"${o === pt.cfg.oct ? ' selected' : ''}>${o > 0 ? '+' : ''}${o} oct</option>`).join('');
+    let sylOpts = '';
+    if (!pt.drum) {
+      if (midi.lyrics.length) sylOpts += `<option value="midi"${pt.cfg.syl === 'midi' ? ' selected' : ''}>letra del MIDI</option>`;
+      sylOpts += Object.keys(SYL_OPTS).map(s => `<option value="${s}"${pt.cfg.syl === s ? ' selected' : ''}>«${s}»</option>`).join('');
+      sylOpts += `<option value="texto"${pt.cfg.syl === 'texto' ? ' selected' : ''}>mi letra…</option>`;
+    }
+    row.innerHTML = `<input type="checkbox"${pt.cfg.on ? ' checked' : ''} aria-label="activar parte">
+      <div class="pname${i === midi.focus ? ' focus' : ''}" title="ver su tracto"><span class="dot" style="background:${pt.color}"></span><div><b></b><small>${info}</small></div></div>
+      <select class="voice-s">${voiceOpts}</select>
+      <select class="oct"${pt.drum ? ' disabled' : ''}>${octOpts}</select>
+      ${pt.drum ? '<span></span>' : `<select class="syl">${sylOpts}</select>`}
+      <div class="vol"><span>vol</span><input type="range" min="0" max="1" step="0.05" value="${pt.cfg.vol}">${pt.drum ? '' : `<input type="text" class="txt${pt.cfg.syl === 'texto' ? '' : ' hidden'}" placeholder="letra para esta parte" value="">`}</div>`;
+    row.querySelector('b').textContent = pt.name + (pt.drum ? '' : ` · c${pt.ch + 1}`);
+    const q = s => row.querySelector(s);
+    q('input[type=checkbox]').onchange = e => { pt.cfg.on = e.target.checked; row.classList.toggle('off', !pt.cfg.on); updCost(); drawAll(null); };
+    q('.pname').onclick = () => {
+      midi.focus = i; box.querySelectorAll('.pname').forEach(el => el.classList.remove('focus')); q('.pname').classList.add('focus');
+      const v = current && current.kind === 'midi' && current.views.find(w => w.part === i && w.line === 0);
+      if (v) { current.segs = v.segs; current.frames = v.frames; current.focusName = pt.name; refreshAfterRender(false); }
+      drawAll(null);
+    };
+    q('.voice-s').onchange = e => { pt.cfg.voice = e.target.value; if (!pt.drum) { pt.cfg.oct = Math.max(-2, Math.min(2, Math.round((PRESETS[pt.cfg.voice].center - pt.median) / 12))); q('.oct').value = pt.cfg.oct; drawAll(null); } };
+    q('.oct').onchange = e => { pt.cfg.oct = +e.target.value; drawAll(null); };
+    if (!pt.drum) {
+      q('.syl').onchange = e => { pt.cfg.syl = e.target.value; q('.txt').classList.toggle('hidden', pt.cfg.syl !== 'texto'); };
+      q('.txt').value = pt.cfg.text; q('.txt').oninput = e => { pt.cfg.text = e.target.value; };
+    }
+    q('.vol input[type=range]').oninput = e => { pt.cfg.vol = +e.target.value; };
+    box.appendChild(row);
+  });
+  updCost();
+}
+
+function drawMidiRoll(o, x) {
+  const { ctx, h } = o, [a, b] = midiRegion();
+  const vis = midi.parts.filter(pt => !pt.drum);
+  let lo = Infinity, hi = -Infinity;
+  vis.forEach(pt => pt.notes.forEach(n => { if (n.start >= a && n.start < b) { const m = n.midi + pt.cfg.oct * 12; lo = Math.min(lo, m); hi = Math.max(hi, m); } }));
+  if (!isFinite(lo)) { lo = 48; hi = 72; }
+  lo -= 2; hi += 2; if (hi - lo < 12) { const c = (hi + lo) / 2; lo = c - 6; hi = c + 6; }
+  const y = m => h - 8 - (m - lo) / (hi - lo) * (h - 18);
+  ctx.strokeStyle = COL.line; ctx.lineWidth = 1; ctx.fillStyle = COL.muted; ctx.font = '10px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  for (let m = Math.ceil(lo); m <= hi; m++) if (m % 12 === 0) { ctx.beginPath(); ctx.moveTo(0, y(m)); ctx.lineTo(o.w, y(m)); ctx.stroke(); ctx.fillText(noteName(m), 4, y(m) - 6); }
+  midi.parts.forEach((pt, i) => {
+    ctx.fillStyle = pt.color;
+    ctx.globalAlpha = pt.cfg.on ? (i === midi.focus ? 0.95 : 0.7) : 0.15;
+    for (const n of pt.notes) {
+      if (n.start < a || n.start >= b) continue;
+      const x0 = x(n.start - a), x1 = x(Math.min(b, n.end) - a);
+      if (pt.drum) ctx.fillRect(x0, h - 6, 2, 5);
+      else { const yy = y(n.midi + pt.cfg.oct * 12); ctx.fillRect(x0, yy - 2.5, Math.max(2, x1 - x0 - 1), 5); }
+    }
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ---- construcción de cada voz ----
+function sylFrom(word) { const s = syllabify(wordToPhones(word), word); return s.length ? s : [LA]; }
+function melismaOf(syl) {
+  const main = syl.nuc.find(v => !v.glide) || syl.nuc[0];
+  return { onset: [], nuc: [main], coda: [], melisma: true, label: '~', word: syl.word };
+}
+function midiSlots(notes, pt) {
+  const cfg = pt.cfg;
+  if (cfg.syl === 'texto' && cfg.text.trim()) {
+    const syls = lyricsSyllables(cfg.text);
+    if (syls.length) return assignSyllables(notes.map(n => Object.assign({}, n)), syls);
+  }
+  if (cfg.syl === 'midi' && midi.lyrics.length) {
+    const slots = []; let k = 0, prev = null;
+    for (const n of notes) {
+      while (k < midi.lyrics.length && midi.lyrics[k].tAbs < n.start - 0.045) k++;
+      const l = midi.lyrics[k];
+      if (l && Math.abs(l.tAbs - n.start) <= 0.045) {
+        const syls = []; for (const t of tokenize(l.text)) if (t.word) syls.push(...sylFrom(t.word));
+        if (!syls.length) syls.push(LA);
+        const len = (n.end - n.start) / syls.length;
+        syls.forEach((s, j) => slots.push({ start: n.start + j * len, end: n.start + (j + 1) * len, syl: s, level: n.level }));
+        prev = slots[slots.length - 1]; k++;
+      } else if (prev) {
+        const ms = melismaOf(prev.syl); ms.coda = prev.syl.coda;
+        prev.syl = Object.assign({}, prev.syl, { coda: [] });
+        const s = { start: n.start, end: n.end, syl: ms, level: n.level };
+        slots.push(s); prev = s;
+      } else slots.push(prev = { start: n.start, end: n.end, syl: LA, level: n.level });
+    }
+    return slots;
+  }
+  const base = sylFrom(SYL_OPTS[cfg.syl] || 'la')[0];
+  return notes.map(n => ({ start: n.start, end: n.end, syl: base, level: n.level }));
+}
+function trackFor(notes, oct, len) {
+  const tr = new Float32Array(Math.ceil((len + 1) * 100) + 2);
+  for (const n of notes) {
+    const hz = 440 * Math.pow(2, (n.midi + oct * 12 - 69) / 12);
+    for (let k = Math.floor(n.start * 100); k <= Math.ceil(n.end * 100) && k < tr.length; k++) tr[k] = hz;
+  }
+  return tr;
+}
+const DRUM = n => {
+  if (n === 35 || n === 36) return { k: 0, pat: [['p', 0.045], ['u', 0.07]] };
+  if ([37, 38, 39, 40].includes(n)) return { k: 1, pat: [['k', 0.035], ['S', 0.09]] };
+  if (n === 42 || n === 44) return { k: 2, pat: [['t', 0.02], ['s', 0.045]] };
+  if (n === 46) return { k: 2, pat: [['t', 0.02], ['s', 0.16]] };
+  if ([49, 51, 52, 53, 55, 57, 59].includes(n)) return { k: 3, pat: [['t', 0.02], ['S', 0.22]] };
+  if (n >= 41 && n <= 50) return { k: 1, pat: [['d', 0.03], ['o', 0.08]] };
+  return { k: 4, pat: [['t', 0.03]] };
+};
+function buildDrumSegs(notes, total) {
+  const hits = [];
+  for (const n of notes) {
+    const L = hits[hits.length - 1];
+    if (L && n.start - L.start < 0.03) { if (DRUM(n.midi).k < DRUM(L.midi).k) hits[hits.length - 1] = Object.assign({}, n, { start: L.start }); }
+    else hits.push(n);
+  }
+  const segs = []; let t = 0;
+  const push = s => { segs.push(s); t += s.dur; };
+  const rest = d => { if (d <= 0) return; const L = segs[segs.length - 1]; if (L && L.p === '_') { L.dur += d; t += d; } else push({ p: '_', dur: d, ipa: '' }); };
+  rest(0.1);
+  hits.forEach((h, i) => {
+    const pat = DRUM(h.midi).pat;
+    let st = h.start - pat[0][1] * 0.8;
+    if (st < t) { const L = segs[segs.length - 1]; if (L && L.p === '_' && L.dur - (t - st) > 0.005) { L.dur -= t - st; t = st; } else st = t; }
+    rest(st - t);
+    const next = hits[i + 1] ? hits[i + 1].start - 0.035 : total + 0.3;
+    const sum = pat.reduce((s, x) => s + x[1], 0), sc = Math.min(1, Math.max(0.02, next - t) / sum);
+    pat.forEach(([p, d]) => push({ p, dur: Math.max(0.008, d * sc), ipa: C[p] ? C[p].ipa : p, level: 0.55 + 0.45 * h.level }));
+  });
+  rest(Math.max(0, total - t) + 0.3);
+  return segs;
+}
+
+async function renderMidiMix(j) {
+  const [a, b] = midiRegion(), len = b - a;
+  midi.lyrics.forEach(l => l.tAbs = l.t - a);
+  const jobs = [];
+  midi.parts.forEach((pt, i) => {
+    if (!pt.cfg.on) return;
+    const clip = ns => ns.filter(n => n.start >= a && n.start < b).map(n => ({ start: n.start - a, end: Math.min(b, n.end) - a, midi: n.midi, level: n.level }));
+    if (pt.drum) {
+      const ns = clip(pt.notes); if (!ns.length) return;
+      jobs.push({ part: i, segs: buildDrumSegs(ns, len), opts: Object.assign({}, PRESETS.Hombre, { f0: 95, tense: 0.7, vibrato: 0, breath: 0 }), gain: pt.cfg.vol });
+    } else {
+      pt.lines.forEach((line, li) => {
+        const ns = clip(line); if (!ns.length) return;
+        const pr = PRESETS[pt.cfg.voice];
+        const opts = Object.assign({}, pr, { vibrato: params.vibrato, breath: Math.max(pr.breath, params.breath * 0.5), f0Track: trackFor(ns, pt.cfg.oct, len) });
+        jobs.push({ part: i, line: li, segs: buildSongSegs(midiSlots(ns, pt), len), opts, gain: pt.cfg.vol * (pt.lines.length > 1 ? 0.75 : 1) });
+      });
+    }
+  });
+  if (!jobs.length) throw new Error('no hay voces activas en este tramo');
+  const melodic = [...new Set(jobs.filter(x => !midi.parts[x.part].drum).map(x => x.part))];
+  const pans = {}; melodic.forEach((pi, k) => pans[pi] = melodic.length > 1 ? -0.6 + 1.2 * k / (melodic.length - 1) : 0);
+  const results = [];
+  for (let k = 0; k < jobs.length; k++) {
+    const jb = jobs[k], pt = midi.parts[jb.part];
+    const res = await renderSegs(jb.segs, jb.opts, p => { const tot = (k + p) / jobs.length; setProg(tot); setStatus(`voz ${k + 1}/${jobs.length} (${pt.name}) ${Math.round(tot * 100)}%`); }, j);
+    results.push({ jb, res });
+  }
+  const outLen = Math.max(...results.map(r => r.res.audio.length));
+  const Lc = new Float32Array(outLen), Rc = new Float32Array(outLen);
+  for (const { jb, res } of results) {
+    const pan = midi.parts[jb.part].drum ? 0 : pans[jb.part] + (jb.line ? (jb.line % 2 ? 0.15 : -0.15) : 0);
+    const ang = (Math.max(-1, Math.min(1, pan)) + 1) * Math.PI / 4, gl = Math.cos(ang) * jb.gain, gr = Math.sin(ang) * jb.gain;
+    const x = res.audio; for (let i = 0; i < x.length; i++) { Lc[i] += x[i] * gl; Rc[i] += x[i] * gr; }
+  }
+  let pk = 1e-9; for (let i = 0; i < outLen; i++) pk = Math.max(pk, Math.abs(Lc[i]), Math.abs(Rc[i]));
+  const g = 0.95 / pk, mono = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) { Lc[i] *= g; Rc[i] *= g; mono[i] = (Lc[i] + Rc[i]) / 2; }
+  const fr = results.find(r => r.jb.part === midi.focus && !r.jb.line) || results.find(r => !midi.parts[r.jb.part].drum) || results[0];
+  const views = results.map(r => ({ part: r.jb.part, line: r.jb.line || 0, segs: r.res.segs, frames: r.res.frames }));
+  return { audio: mono, audioL: Lc, audioR: Rc, sampleRate: 48000, segs: fr.res.segs, frames: fr.res.frames, duration: outLen / 48000, voices: jobs.length, focusName: midi.parts[fr.jb.part].name, views };
+}
+
 // ---------- render / reproducción ----------
 let src = null, origSrc = null, origGain = null, startAt = 0, offset = 0, raf = 0;
 const setStatus = s => { $('status').textContent = s; };
 const keyNow = () => mode === 'speak'
   ? 'S|' + $('text').value + JSON.stringify(params)
+  : mode === 'midi'
+  ? 'M|' + (midi ? midi.name + JSON.stringify(midi.parts.map(pt => pt.cfg)) + midiRegion().join('-') : '') + params.vibrato + '|' + params.breath
   : 'C|' + $('lyrics').value + JSON.stringify(params) + $('transpose').value + '|' + $('autotune').value + '|' + (song ? song.start + '-' + song.end + (song.stale ? 'x' : '') : '');
 
 async function go(from = 0) {
   stop();
   if (mode === 'speak' && !$('text').value.trim()) return;
   if (mode === 'sing' && !song) { $('file').click(); return; }
+  if (mode === 'midi' && !midi) { $('mfile').click(); return; }
   $('play').disabled = true;
   if (mode === 'sing' && song.stale) await analyze();
   const j = newJob();
@@ -1191,15 +1580,19 @@ async function go(from = 0) {
     const k = keyNow(), cached = cache[mode];
     if (!cached || cached.key !== k) {
       const t0 = performance.now();
-      let segs, opts = Object.assign({}, params);
-      if (mode === 'speak') segs = textToSegments($('text').value, params);
+      let res;
+      if (mode === 'midi') res = await renderMidiMix(j);
       else {
-        let syls = lyricsSyllables($('lyrics').value);
-        if (!syls.length) syls = song.notes.map(() => LA);
-        segs = buildSongSegs(assignSyllables(song.notes, syls), song.len);
-        opts.f0Track = songTrack();
+        let segs, opts = Object.assign({}, params);
+        if (mode === 'speak') segs = textToSegments($('text').value, params);
+        else {
+          let syls = lyricsSyllables($('lyrics').value);
+          if (!syls.length) syls = song.notes.map(() => LA);
+          segs = buildSongSegs(assignSyllables(song.notes, syls), song.len);
+          opts.f0Track = songTrack();
+        }
+        res = await renderSegs(segs, opts, p => { setProg(p); setStatus('sintetizando ' + Math.round(p * 100) + '%'); }, j);
       }
-      const res = await renderSegs(segs, opts, p => { setProg(p); setStatus('sintetizando ' + Math.round(p * 100) + '%'); }, j);
       res.kind = mode; res.key = k; res.spec = spectrogram(res.audio, res.sampleRate); res.took = (performance.now() - t0) / 1000;
       cache[mode] = res;
     }
@@ -1215,13 +1608,16 @@ function refreshAfterRender(status) {
   specImg = buildSpecImage(current.spec);
   $('dl').disabled = false;
   if (current.kind === 'speak') $('ipa').textContent = '[' + current.segs.map(s => (s.stress ? 'ˈ' : '') + s.ipa).join('') + ']';
+  else if (current.kind === 'midi') $('ipa').textContent = `${current.voices} ${current.voices === 1 ? 'voz' : 'voces'} · tracto visible: ${current.focusName}`;
   else $('ipa').textContent = song && song.notes ? song.notes.map(n => n.label || '').filter(l => l && l !== '~').join(' ') : '';
   if (status) setStatus(`${current.duration.toFixed(1)} s · sintetizado en ${current.took.toFixed(1)} s`);
 }
 function playBuffer(from) {
   const ctx = getCtx(); if (ctx.state === 'suspended') ctx.resume();
-  const buf = ctx.createBuffer(1, current.audio.length, current.sampleRate);
-  buf.getChannelData(0).set(current.audio);
+  const stereo = !!current.audioL;
+  const buf = ctx.createBuffer(stereo ? 2 : 1, current.audio.length, current.sampleRate);
+  if (stereo) { buf.getChannelData(0).set(current.audioL); buf.getChannelData(1).set(current.audioR); }
+  else buf.getChannelData(0).set(current.audio);
   src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination);
   const when = ctx.currentTime + 0.06;
   offset = from; startAt = when;
@@ -1258,7 +1654,8 @@ $('play').onclick = () => go(0);
 $('stop').onclick = () => { stop(); drawAll(null); };
 $('dl').onclick = async () => {
   if (!current) return;
-  let chans = [current.audio], name = 'voz-tracto.wav';
+  let chans = current.audioL ? [current.audioL, current.audioR] : [current.audio];
+  let name = current.kind === 'midi' ? 'tracto-coro.wav' : 'voz-tracto.wav';
   const og = +$('orig').value;
   if (current.kind === 'sing' && song && og > 0) {
     setStatus('mezclando…');
@@ -1273,10 +1670,31 @@ $('dl').onclick = async () => {
     const gn = pk > 0.98 ? 0.98 / pk : 1; for (let i = 0; i < len; i++) { L[i] *= gn; R[i] *= gn; }
     chans = [L, R]; name = 'tracto-cancion.wav'; setStatus('listo');
   }
-  const blob = new Blob([toWav(chans, current.sampleRate)], { type: 'audio/wav' });
+  const wav = new Uint8Array(toWav(chans, current.sampleRate));
+  const api = window.claude && claude.use ? await claude.use('downloads').catch(() => null) : null;
+  if (api) {
+    try { await api.save({ filename: name.replace(/\.wav$/, '.zip'), data: new Blob([zipOne(name, wav)]) }); setStatus('guardado (.zip con el WAV)'); }
+    catch (e) { setStatus(e && e.code === 'declined' ? 'descarga cancelada' : e && e.code === 'rate_limited' ? 'espera un momento y vuelve a intentar' : 'no se pudo guardar aquí'); }
+    return;
+  }
+  const blob = new Blob([wav], { type: 'audio/wav' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 };
+// ZIP sin compresión con un solo archivo (el visor permite .zip, no .wav)
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function zipOne(name, data) {
+  let crc = 0xFFFFFFFF; for (let i = 0; i < data.length; i++) crc = CRC_T[(crc ^ data[i]) & 255] ^ (crc >>> 8); crc = (crc ^ 0xFFFFFFFF) >>> 0;
+  const fn = new TextEncoder().encode(name), out = new Uint8Array(30 + fn.length + data.length + 46 + fn.length + 22), v = new DataView(out.buffer);
+  let o = 0;
+  v.setUint32(o, 0x04034b50, true); v.setUint16(o + 4, 20, true); v.setUint32(o + 14, crc, true); v.setUint32(o + 18, data.length, true); v.setUint32(o + 22, data.length, true); v.setUint16(o + 26, fn.length, true);
+  out.set(fn, o + 30); out.set(data, o + 30 + fn.length);
+  const cd = 30 + fn.length + data.length; o = cd;
+  v.setUint32(o, 0x02014b50, true); v.setUint16(o + 4, 20, true); v.setUint16(o + 6, 20, true); v.setUint32(o + 16, crc, true); v.setUint32(o + 20, data.length, true); v.setUint32(o + 24, data.length, true); v.setUint16(o + 28, fn.length, true);
+  out.set(fn, o + 46); o += 46 + fn.length;
+  v.setUint32(o, 0x06054b50, true); v.setUint16(o + 8, 1, true); v.setUint16(o + 10, 1, true); v.setUint32(o + 12, 46 + fn.length, true); v.setUint32(o + 16, cd, true);
+  return out;
+}
 $('text').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(0); } });
 $('lyrics').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(0); } });
 ['timeline', 'roll', 'spec'].forEach(id => $(id).addEventListener('click', e => {
@@ -1289,3 +1707,5 @@ drawAll(null);
 </script>
 </body>
 </html>
+
+</body></html>
